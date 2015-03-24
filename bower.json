@@ -1,0 +1,13 @@
+{
+  "name": "components-drp",
+  "private": true,
+  "dependencies": {
+    "bootstrap": "~3.3.1",
+    "modernizr": "~2.8.1",
+    "backbone": "~1.1.2",
+    "underscore": "~1.7.0",
+    "mustache": "~1.0.0",
+    "moment": "~2.9.0",
+    "backbone-super": "~1.0.4"
+  }
+}
