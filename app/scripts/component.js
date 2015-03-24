@@ -2,7 +2,7 @@
 
 
 // Main wrapper
-//window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
+window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
@@ -366,11 +366,11 @@
 
 	/* ------------------------------------------ */
 
-//	return {
-//		model: myModel,
-//		view: myView
-//	};
+	return {
+		model: myModel,
+		view: myView
+	};
 	
-//})( window.Backbone , window._ , window.Mustache, window.Base, window.$ );
+})( window.Backbone , window._ , window.Mustache, window.Base, window.$ );
 
-//window.M = componentTest;
+window.M = componentTest;
