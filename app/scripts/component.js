@@ -1,71 +1,83 @@
 /* jshint devel:true */
 
 
+
 // Main wrapper
-window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
+window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
-
-
+	'use strict';
 
 
 
 
 	// BaseBone Mixin: adds events and Base.js extend methods to target class
 	var BaseBone = ( function ( _ , Base , Backbone ){
-		'use strict';
+		//'use strict';
 
-		var extend = _.extend,
-				pick = _.pick;
+		var rest = _.rest;
 
-		return BaseBone
+		//--------------------------------//
+				
+		function extendClass ( TargetClass  ){
+			return Base.extend.apply( TargetClass, rest( arguments ) );
+		}
+
+		function addSelfExtend ( TargetClass ){
+			return extendClass( TargetClass, {}, { extend: Base.extend });
+		}
+
+		function addEvents ( TargetClass ){
+			return extendClass( TargetClass , Backbone.Events );
+		}
+
+		function basebonify ( TargetClass ){
+			var newClass = addSelfExtend( TargetClass );
+			newClass = newClass.extend( Backbone.Events );
+			newClass = newClass.extend( arguments[1], arguments[2] );
+			return newClass;
+		}
+
+
+		var BaseBone = {};
+
 
 		//--------------------------------//
 
-		function BaseBone ( TargetClass ){
-			TargetClass.extend = Base.extend;
-			extend( TargetClass.prototype, Backbone.Events, pick( Base.prototype, [ 'ancestor', 'proto', 'toString', 'valueOf' ]) );
-		}
+		BaseBone.extendClass = extendClass;
+		BaseBone.basebonify = basebonify;
+		BaseBone.extendWithEvents = basebonify;
+
+		return BaseBone;
 
 	})( _ , Base , Backbone );
 
 
 	// Base Collection 
 	var BaseCollection = ( function ( BaseBone ){
-		'use strict';
+		//'use strict';
 
-		var each = _.each,
-				extend = _.extend,
-				isArray = _.isArray;
+		var Collection = BaseBone.basebonify( Array , {
+			push: function ( ){
+				var ret = this.base.apply( this , arguments ),
+						args = [].slice.call( arguments );
+				for(var i = 0, len = args.length; i < len; i++) {
+					this.trigger('add', args[i], ret - len + i);
+				}
+  			this.trigger('change');
+  			return ret;
+			},
 
-		var Collection = Array;
-
-		BaseBone( Collection );
-
-		return getAugmentedCollection( Collection );
+			pop: function ( ){
+				var ret = this.base.apply(this, arguments);
+			  this.trigger('remove', ret, this.length);
+			  this.trigger('change');
+			  return ret;
+			}
+		});
 
 		//--------------------------------//
 
-		function getAugmentedCollection( Collection ){
-			return Collection.extend({
-			
-				push: function ( ){
-					var ret = this.base.apply( this , arguments ),
-							args = [].slice.call( arguments );
-					for(var i = 0, len = args.length; i < len; i++) {
-						this.trigger('add', args[i], ret - len + i);
-					}
-	  			this.trigger('change');
-	  			return ret;
-				},
-
-				pop: function ( ){
-					var ret = this.base.apply(this, arguments);
-				  this.trigger('remove', ret, this.length);
-				  this.trigger('change');
-				  return ret;
-				}
-			});
-		}
+		return Collection ;
 
 	})( BaseBone );
 
@@ -73,47 +85,35 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	// Base View 
 	var BaseView = ( function ( _ , $ , Mustache , BaseBone , Backbone ){
-		'use strict';
+		//'use strict';
 
-		var extend = _.extend,
-				clone = _.clone,
-				noop = _.noop;
+		var View = BaseBone.basebonify( Backbone.View ,{
+			initialize: function ( config ){
+				// Create model bindings.
+				// TODO: Create smarter bindings to bind only to used properties.
+				this.setModel( config.model );
+				this.setElement( $( config.target ) );
+			},
+			getModel: function () {
+				return this.model;
+			},
+			setModel: function ( model ) {
+				this.stopListening();
+				this.model = model;
+				this.bindToModel();
+			},
+			bindToModel: function (){
+				this.listenTo( this.getModel() , 'change', this.render );	
+			},
+			render: function (){
+				return this.$el.html( Mustache.render( this.template, this.model.toJSON() ) );
+			}
 
-		var View = Backbone.View;
-		
-		BaseBone( View );
-
-		return getAugmentedView ( View );
+		});
 
 		//--------------------------------//
 
-		function getAugmentedView( View ){
-			return View.extend({
-				initialize: function ( config ){
-					// Create model bindings.
-					// TODO: Create smarter bindings to bind only to used properties.
-					this.setModel( config.model );
-					this.setElement( $( config.target ) )
-				},
-				getModel: function () {
-					return this.model;
-				},
-				setModel: function ( model ) {
-					this.stopListening();
-					this.model = model;
-					this.bindToModel();
-				},
-				bindToModel: function (){
-					this.listenTo( this.getModel() , 'change', this.render );	
-				},
-				render: function (){
-					return this.$el.html( Mustache.render( this.template, this.model.toJSON() ) );
-				}
-
-			});
-		}
-
-	
+		return View;
 
 	})( _ , $ , Mustache , BaseBone , Backbone );
 
@@ -123,10 +123,9 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	// Base Model
 	var BaseModel = ( function ( _ , BaseBone , Backbone ){
-		'use strict';
+		//'use strict';
 
-		var Model = Backbone.Model;
-		BaseBone( Model );
+		var Model = BaseBone.basebonify( Backbone.Model );
 
 		return Model;
 
@@ -136,39 +135,33 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 	var BaseController = ( function ( _ , BaseBone, BaseCollection ){
-		'use strict';
+		//'use strict';
 
-		BaseBone( Controller );
-
-		return getAugmentedController( Controller );
-
-		//--------------------------------//
-
-		function Controller ( views , models ){
-			this.views = new BaseCollection();
-			this.models = new BaseCollection();
+		function SeedController ( views , models ){
+			this.views = new BaseCollection( views );
+			this.models = new BaseCollection( models );
 		}
 
-		function getAugmentedController ( TargetClass ){
-			TargetClass.extend({
-				addView: function ( v ){
-					var ret = this.views.push.apply( this.views , arguments );
-					return ret
-				},
-				removeView: function ( ){
-					var ret = this.views.pop.apply( this.views , arguments );
-					return ret;
-				},
-				addModel: function ( m ){
-					var ret = this.models.push.apply( this.models , arguments );
-					return ret;
-				},
-				removeModel: function ( ){
-					var ret = this.models.pop.apply( this.models , arguments );
-					return ret;
-				}
-			});
-		}
+		var Controller = BaseBone.basebonify( SeedController , {
+			addView: function ( ){
+				var ret = this.views.push.apply( this.views , arguments );
+				return ret;
+			},
+			removeView: function ( ){
+				var ret = this.views.pop.apply( this.views , arguments );
+				return ret;
+			},
+			addModel: function ( ){
+				var ret = this.models.push.apply( this.models , arguments );
+				return ret;
+			},
+			removeModel: function ( ){
+				var ret = this.models.pop.apply( this.models , arguments );
+				return ret;
+			}
+		});
+		
+		return Controller;
 
 
 	})( _ , BaseBone , BaseCollection );
@@ -179,7 +172,7 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	// Base Element
 	var BaseElement = ( function ( Base, _  ){
-		'use strict';
+		//'use strict';
 
 		var isFunction = _.isFunction,
 				isArray = _.isArray,
@@ -234,7 +227,7 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	// Model Definition
 	var DrpModel = ( function ( BaseModel ){
-		'use strict';
+		//'use strict';
 
 		var Model = BaseModel.extend({
 			defaults: {
@@ -263,7 +256,7 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	// View Definition 
 	var DrpView = ( function ( BaseView, $, _ ){
-		'use strict';
+		//'use strict';
 
 		var isBoolean = _.isBoolean;
 
@@ -301,7 +294,7 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 					// from the DOM, possibly because another event triggered a rerender.
 					if ( ! $.contains( view.el, ev.target ) && $.contains( document.body , ev.target ) ){
 						view.toggleMenu( false );
-					};
+					}
 				});
 			}
 			
@@ -314,18 +307,20 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 	// Element Definition
-	var Drp = ( function ( BaseElement, View, Model ){
+	/*var Drp = ( function ( BaseElement, View, Model ){
+		//'use strict';
 
 		var Element = BaseElement.extend({
 
 		});
 
 
-	})( BaseElement, DrpView, DrpModel );
+	})( BaseElement, DrpView, DrpModel );*/
 
 
 
-	var myModel = new DrpModel({});
+	var myModel  = new DrpModel({}),
+			myModel2 = new DrpModel({});
 
 	var myView = new DrpView({
 		model: myModel,
@@ -339,6 +334,7 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	myController.listenTo( myView, 'toggleMenu', function( value ){
 		myModel.set('isVisible', value );
+		myModel2.set('isVisible', value );
 	});
 
 
@@ -354,23 +350,49 @@ window.componentTest = ( function (  Backbone , _ , Mustache , Base , $ ) {
 		{
 			label: 'P3'
 		}
-	])
+	]);
 
 
+	myModel2.set('start', 'abc');
+	myModel2.set('end', 'def');
+	myModel2.set('predefined', [
+		{
+			label: 'K1'
+		},
+		{
+			label: 'K2'
+		},
+		{
+			label: 'K3'
+		}
+	]);
 
 
-	/* ------------------------------------------ */
-
-
-
-
-	/* ------------------------------------------ */
-
-	return {
+	var exports = {
 		model: myModel,
-		view: myView
-	};
+		view: myView,
+		model2: myModel2
+	}
+
+
+	/* ------------------------------------------ */
+
+
+
+
+	/* ------------------------------------------ */
+
+	return exports
 	
 })( window.Backbone , window._ , window.Mustache, window.Base, window.$ );
 
-window.M = componentTest;
+// 
+// 
+// 
+// 
+// 
+// 
+// 
+// 
+// 
+
