@@ -378,8 +378,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 	var exports = {
 		model: myModel,
 		view: myView,
-		model2: myModel2
-	}
+		model2: myModel2,
+		BaseBone: BaseBone,
+		BaseCollection: BaseCollection,
+		BaseController: BaseController
+	};
 
 
 	/* ------------------------------------------ */
@@ -389,7 +392,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 	/* ------------------------------------------ */
 
-	return exports
+	return exports;
 	
 })( window.Backbone , window._ , window.Mustache, window.Base, window.$ );
 
