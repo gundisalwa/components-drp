@@ -10,11 +10,14 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-	// BaseBone Mixin: adds events and Base.js extend methods to target class
+	// BaseBone: returns Base.js modification that includes Backbone.Events. 
+	//   Also has several static helpers to augment constructors with .extend
+	//   and events functionality.
 	var BaseBone = ( function ( _ , Base , Backbone ){
 		//'use strict';
 
-		var rest = _.rest;
+		var rest = _.rest,
+				noop = _.noop;
 
 		//--------------------------------//
 				
@@ -31,23 +34,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 		}
 
 		function basebonify ( TargetClass ){
-			var newClass = addSelfExtend( TargetClass );
-			newClass = newClass.extend( Backbone.Events );
-			newClass = newClass.extend( arguments[1], arguments[2] );
-			return newClass;
+			return extendClass( addEvents( addSelfExtend( TargetClass ) ) , arguments[1] , arguments[2] );	
 		}
 
-
-		var BaseBone = {};
-
+		var exports = basebonify( noop );
 
 		//--------------------------------//
 
-		BaseBone.extendClass = extendClass;
-		BaseBone.basebonify = basebonify;
-		BaseBone.extendWithEvents = basebonify;
+		exports.extendClass = extendClass;
+		exports.basebonify = basebonify;
+		exports.convert = basebonify;
 
-		return BaseBone;
+		return exports;
 
 	})( _ , Base , Backbone );
 
