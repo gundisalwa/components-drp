@@ -53,8 +53,17 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 	// Base Collection 
 	var BaseCollection = ( function ( BaseBone ){
 		//'use strict';
+		
 
-		var Collection = BaseBone.basebonify( Array , {
+		function SeedCollection (){
+			this.push.apply( this, arguments );
+		}
+		SeedCollection.prototype = [];
+
+		// We need to explicitly pass a constructor because we don't want Base.js to do
+		// Array.apply, which will break.
+		var Collection = BaseBone.basebonify( SeedCollection , {
+			constructor: SeedCollection,
 			push: function ( ){
 				var ret = this.base.apply( this , arguments ),
 						args = [].slice.call( arguments );
