@@ -2,12 +2,11 @@
   "name": "components-drp",
   "private": true,
   "dependencies": {
-    "bootstrap": "~3.3.1",
-    "modernizr": "~2.8.1",
-    "backbone": "~1.1.2",
-    "underscore": "~1.7.0",
-    "mustache": "~1.0.0",
-    "moment": "~2.9.0",
-    "backbone-super": "~1.0.4"
+    "bootstrap": "~3.3.4",
+    "modernizr": "2.0.6",
+    "underscore": "1.5.2",
+    "backbone": "1.1.0",
+    "mustache": "0.7.1",
+    "moment": "2.9.0"
   }
 }
