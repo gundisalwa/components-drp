@@ -87,3 +87,14 @@ body {
     border-bottom: 0;
   }
 }
+
+
+
+
+
+
+
+
+.selected {
+  background: red;
+}
