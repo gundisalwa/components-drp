@@ -1,0 +1,27 @@
+{
+	"excludeFiles" : [ "node_modules/**" , "bower_components/**" , "app/scripts/Base.js" ],
+	"validateQuoteMarks" : { 
+		"mark" : "'" , 
+		"escape": true 
+	},
+	"validateParameterSeparator" : " , ",
+
+	"disallowTrailingComma" : true,
+	"disallowSpaceAfterObjectKeys": true,
+	"disallowTrailingWhitespace": true,
+	"requireYodaConditions" : true,
+	"requireSpacesInsideParentheses": {
+		"all" : true
+	},
+	"requireSpacesInsideObjectBrackets" : "all",
+	"requireSpacesInsideBrackets" : true,
+	"requireSpacesInConditionalExpression": {
+    "afterTest": true,
+    "beforeConsequent": true,
+    "afterConsequent": true,
+    "beforeAlternate": true
+	},
+	"requireCamelCaseOrUpperCaseIdentifiers": true,
+	"requireSemicolons": true
+
+}
