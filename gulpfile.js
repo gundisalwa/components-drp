@@ -11,7 +11,8 @@ gulp.task('styles', function () {
 });
 
 gulp.task('jshint', function () {
-  return gulp.src('app/scripts/**/*.js')
+  return gulp.src( [ 'app/scripts/**/*.js' , '!app/scripts/Base.js' ] )
+    .pipe($.jscs())
     .pipe($.jshint())
     .pipe($.jshint.reporter('jshint-stylish'));
     //.pipe($.jshint.reporter('fail'));
