@@ -21,15 +21,14 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var BaseBone = ( function ( _ , Base , Backbone ) {
     //'use strict';
     var Events = Backbone.Events,
-    		rest = _.rest,
-    		noop = function (){};
+        rest = _.rest,
+        noop = function (){};
 
 
     //--------------------------------//
 
     function extendClass ( TargetClass  ) {
-    	var NewClass = Base.extend.apply( TargetClass, rest( arguments ) );
-    	delete( NewClass.prototype.extend ); // TODO: Don't include the instance method squasher?
+      var NewClass = Base.extend.apply( TargetClass, rest( arguments ) );
       return NewClass;
     }
 
@@ -42,11 +41,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     }
 
     function basebonify ( TargetClass ) {
-      return extendClass( 
-      				addEvents( addSelfExtend( TargetClass ) ) , 
-      				arguments[ 1 ] ,
-      				arguments[ 2 ]
-      			);
+      return extendClass(
+              addEvents( addSelfExtend( TargetClass ) ) ,
+              arguments[ 1 ] ,
+              arguments[ 2 ]
+            );
     }
 
     // Returns an empty constructor augmented with Base.js inheritance and Backbone Events.
@@ -111,17 +110,77 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  * Base Components
  *
  **********************************************************************************************************************/
-  
+
 
   // Base Model
   var BaseModel = ( function ( _ , BaseBone , Backbone ) {
     //'use strict';
+    var bind = _.bind;
 
-    var Model = BaseBone.basebonify( Backbone.Model );
-
-    return Model;
+    return BaseBone.basebonify( Backbone.Model , {
+      getSetter: function ( attributeName ){
+        return bind( this.set , this , attributeName );
+      },
+      getGetter: function ( attributeName ){
+        return bind( this.get , this , attributeName );
+      }
+    } );
 
   } )( _ , BaseBone , Backbone );
+
+
+
+  var BaseController = ( function ( _ , BaseBone ){
+    //'use strict';
+    var bind = _.bind;
+
+    //--------------------------------//
+
+    return BaseBone.extend( {
+      constructor: function ( element ){
+
+        this.setElement( element );
+
+        // Create Bindings
+        this.listenTo( element.getState()  , 'change' , this.renderView  );
+        this.listenTo( element.getParams() , 'change' , this.renderView  );
+
+      },
+      setElement: function ( element ){
+        this.element = element;
+      },
+      getElement: function ( ){
+        return this.element;
+      },
+      model2viewModel: function ( state , params ){
+        // Default Implementation of model -> viewModel transformation. Override as needed.
+        return {
+          state: state,
+          params: params
+        };
+      },
+      listenToChange: function ( model , attributeName , callback ){
+        var eventName = "change:" + attributeName,
+            boundcallback = bind( callback , this );
+
+        function wrapCallback ( model , value , options ){
+          return boundcallback( value , options );
+        }
+
+        return this.listenTo( model , eventName , wrapCallback );
+      },
+
+      renderView: function ( ){
+        var state = this.getElement().getState().toJSON(),
+            params = this.getElement().getParams().toJSON(),
+            vm = this.model2viewModel( state , params );
+        return this.getElement().getView().render( vm );
+      }
+
+
+    } );
+
+  } )( _ , BaseBone );
 
 
 
@@ -130,16 +189,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     var identity = _.identity,
-    		isString = _.isString,
+        isString = _.isString,
         isEqual = _.isEqual;
 
     //--------------------------------//
-    
 
-    //--------------------------------//
-
-
-    var View = BaseBone.basebonify( Backbone.View ,{
+    return BaseBone.basebonify( Backbone.View ,{
       constructor: function ( config ) {
         this.base.apply( this, arguments );
 
@@ -149,53 +204,49 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           this.setElement( $( config.target ) );
         }
 
-        this.setViewModel( new BaseModel() );
+        this.setModel ( new BaseModel() );
       },
 
-      setViewModel: function ( model ){
-        this.viewModel = model;
+      setModel: function ( model ){
+        this.model = model;        
       },
-      getViewModel: function (){
-        return this.viewModel;
+      getModel: function (){
+        return this.model;
       },
 
       getElement: function (){
-      	return this.$el;
+        return this.$el;
       },
       getTemplate: function ( key ) {
-      	return ( isString( key ) && this.templates && this.templates[key] ) || this.template;
+        return ( isString( key ) && this.templates && this.templates[ key ] ) || this.template;
       },
 
       render: function ( model ) {
-      	
-        this.getViewModel().set( model );
 
-        // Using .hasChanged instead of binding a callback to synchronize. 
+        this.getModel().set( model );
+
+        // Using .hasChanged instead of binding a callback to synchronize.
         // TODO: Evaluate if async is better.
-        if ( this.getViewModel().hasChanged() ){          
+        if ( this.getModel().hasChanged() ){
           this.getElement().empty();
-          this.renderParent( this.getElement() , this.getViewModel() );
-          this.renderChildren( this.getElement() , this.getViewModel() );
+          this.renderParent( this.getElement() , this.getModel() );
+          this.renderChildren( this.getElement() , this.getModel() );
         }
 
         return this.getElement();
       },
 
-      // TODO: Should we have to pass the target? 
+      // TODO: Should we have to pass the target?
       // Or should it be taken from this.$el, for coherence???
       renderParent: function ( target , model ) {
         return $( target ).html( this.renderTemplate( this.getTemplate() , model.toJSON() ) );
       },
       renderTemplate: function ( template , data ){
-      	return Mustache.render( template ,  data );
+        return Mustache.render( template ,  data );
       },
       renderChildren: identity
 
     } );
-
-    //--------------------------------//
-
-    return View;
 
   } )( _ , $ , Mustache , BaseBone , Backbone , BaseModel );
 
@@ -206,114 +257,108 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     var isFunction = _.isFunction,
-		    isArray = _.isArray,
-		    reduce = _.reduce,
-		    identity = _.identity,
-		    noop = function (){},
+        isArray = _.isArray,
+        reduce = _.reduce,
+        identity = _.identity,
+        noop = function (){},
         partial = _.partial,
-		    extend = _.extend;
+        extend = _.extend;
 
     //--------------------------------//
 
-    function normalizeInputHandlers ( inputHandlers ) {
-
-      var normalized =
-			      isArray ( inputHandlers ) ? inputHandlers :
-			      isFunction ( inputHandlers ) ? [ inputHandlers ] :
-			      [];
-
-      return normalized;
-    }
-
-    function runInputHandlers ( newData , inputHandlers , model  ) {
-      var transformedData = reduce( inputHandlers , function ( acc , handler ) {
-  				return handler( acc, model );
-				}, newData );
-      return transformedData;
-    }
-
-    function renderView ( el ){
-      return el.view.render( el.getViewModel() );
-    }
-
-    function bindModelsToView ( el ){
-      el.listenTo( el.state , 'change' , partial( renderView , el ) );
-      el.listenTo( el.params , 'change' , partial( renderView , el ) );
-    }
-
-    function bindControl ( el ){
-      bindModelsToView ( el );
-      el.bindControl();
-    }
-
-    //--------------------------------//
-
-
-    var Element = BaseBone.extend( {
+    return BaseBone.extend( {
 
       constructor: function ( opts ) {
-        opts = opts || {};
-
         this.base( opts );
 
-        // Set inputModel
-        this.params =  new BaseModel( opts.params );
+        // Set Params model
+        this.setParams( new BaseModel( opts.params ) );
 
-        // Set model
-        this.state = new BaseModel( opts.state );
-
-        // Set view and view target
-        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
-        this.view = this.getNewView( viewOpts );
-
-        // Main controller events binding
-        bindControl( this );
+        // Set State model
+        this.setState( new BaseModel( opts.state ) );
 
       },
 
       // API
       update: function ( newInput ){
-      	// TODO: promisses???
-        this.params.set( newInput ); 
-        this.trigger( 'update' , newInput );
-      	return this.getViewElement();
+        // TODO: promisses???
+        this.getParams().set( newInput );
+        this.trigger( 'updated' , newInput );
+        return this.getView().getElement();
       },
       render: function (){
-      	// TODO: promisses???
-        var $el = renderView( this );
-        this.trigger( 'render' , $el );
-      	return $el;
+        // TODO: promisses???
+        this.getController().renderView( );
+        this.trigger( 'render' , this.getView().getElement() );
+        return this.getView().getElement();
       },
 
-
-      // 
-      getNewView: function (  viewOpts ) {
-        // Override this to get a different view
-        return ( new BaseView( viewOpts ) );
+      // private definitions
+      setView: function( view ){
+        this.view = view;
       },
-      getViewElement: function () {
-        return ( this.view && this.view.getElement() );
-      },
-      getViewModel: function (){
-        return {
-          input: this.params.toJSON(),
-          state: this.state.toJSON()
-        }
+      getView: function(){
+        return this.view;
       },
 
-   		// Control
-      bindControl: noop,
+      setController: function( controller ){
+        this.stopListening( this.controller );
+        this.listenTo( controller , 'all', this.routeControllerEvent );
+        this.controller = controller;
+      },
+      getController: function(){
+        return this.controller;
+      },
+      routeControllerEvent: function ( ){
+        this.trigger.apply( this , arguments );
+      },
 
-
+      setParams: function( params ){
+        this.params = params;
+      },
+      getParams: function(){
+        return this.params;
+      },
+      setState: function( state ){
+        this.state = state;
+      },
+      getState: function(){
+        return this.state;
+      }
 
     } );
-
-    return Element;
 
   } )( _ , BaseBone , BaseView , BaseModel );
 
 
+/***********************************************************************************************************************
+ *
+ * Predefined Element
+ *
+ **********************************************************************************************************************/
 
+  var DrpBaseController = ( function ( _ , BaseController ){
+    // 'use strict';
+
+    var bind = _.bind;
+
+    return BaseController.extend({
+      listenTo: function ( observed , eventName , callback ){
+        var modifiedCallback = callback;
+
+        if ( eventName.match(/^change:/) ){
+          var boundcallback = bind( callback , this );
+          
+          modifiedCallback = function ( model , value , options ){
+            return boundcallback( value , options );
+          }
+        }
+        
+        return this.base( observed , eventName , modifiedCallback );
+      }
+    } );
+
+  } )( _ , BaseController );
 
 
 
@@ -327,55 +372,68 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  *
  **********************************************************************************************************************/
 
+  // Controller Definition
+  var PredefinedController = ( function ( BaseController ){
+    //'use strict';
+
+    return BaseController.extend( {
+      constructor: function ( element ){
+        this.base( element );
+
+        // Create Bindings
+        this.listenTo ( element.getView() , 'click' , this.activate );
+      },
+      model2viewModel: function ( state , params ){
+        return {
+          label: state.label
+        };
+      },
+      activate: function (){
+        this.trigger( 'activate' , this.getElement().getParams().get( 'getRange' )() );
+      }
+    } );
+
+  } )( BaseController );
+
 
   // View Definition
   var PredefinedView = ( function ( BaseView ) {
     //'use strict';
 
-    var View = BaseView.extend( {
+    return BaseView.extend( {
       events: {
         'click': 'click'
       },
       template:
-	      '<div>' +
-	      '  <span>{{ label }}</span>' +
-	      '</div>',
+        '<div>' +
+        '  <span>{{ label }}</span>' +
+        '</div>',
       click: function ( ) {
         this.trigger( 'click' );
       }
 
     } );
 
-    return View;
-
   } )( BaseView );
 
-  // Element/Controller Definition
-  var PredefinedElement = ( function ( BaseElement , PredefinedView ) {
+  // Element Definition
+  var PredefinedElement = ( function ( BaseElement , PredefinedView , PredefinedController ) {
     //'use strict';
+    var extend = _.extend;
 
-    var Element = BaseElement.extend( {
-      getNewView: function (  viewOpts ) {
-        return ( new PredefinedView( viewOpts ) );
-      },
-      getViewModel: function ( ){
-        return { label: this.params.get('label') }
-      },
-      bindControl: function ( ) {
-        var myself = this;
+    return BaseElement.extend( {
+      constructor: function ( opts ){
+        this.base( opts );
 
-        myself.listenTo ( myself.view , 'click' , function ( rangeModifier ) {
-          myself.trigger( 'activate' , myself.params.get( 'getRange' )() );
-        } );
+        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        this.setView( new PredefinedView( viewOpts ) );
 
+        this.setController( new PredefinedController( this ) );
       }
 
     } );
 
-    return Element;
-
-  } )( BaseElement , PredefinedView );
-
+  } )( BaseElement , PredefinedView , PredefinedController );
 
 
 
@@ -393,97 +451,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
 
-  // View Definition
-  var CalendarView = ( function ( BaseView , $ , _ ) {
-    //'use strict';
 
-    var isBoolean = _.isBoolean,
-    		partial = _.partial,
-    		bind = _.bind,
-    		forEach = _.forEach;
-
-    //--------------------------------//
-
-
-    function bindToPage ( target , callback ) {
-      return $( document ).on( 'click', function ( ev ) {
-          // The second part of this test accounts for when the original target is already detached
-          // from the DOM, possibly because another event triggered a rerender.
-          if ( ! $.contains( target , ev.target ) && $.contains( document.body , ev.target ) ){
-            callback();
-          }
-        } );
-    }
-
-
-    //--------------------------------//
-
-
-    var View = BaseView.extend( {
-      events: {
-        'click .rangeDisplay': 'toggleMenu'
-      },
-      template:
-	      '<div class="calendarContainer">' +
-	      '  <div class="calendarModes">' +
-	      '  </div> ' +
-	      '  <div class="calendarItems"> ' +
-	      '  </div> ' +
-	      '</div>'
-    } );
-
-
-    return View;
-
-  } )( BaseView , $ , _ );
-
-
-  // DRP Element
-  var CalendarElement = ( function ( BaseElement , DrpView  ) {
-  	//'use strict';
-	
-		var forEach = _.forEach,
-				extend = $.extend,
-				without = _.without,
-				isArray = _.isArray,
-				isObject = _.isObject,
-				isEqual = _.isEqual,
-				clone = function ( v ){
-					return !isObject(v) ? v : extend( true, isArray(v) ? [] : {} , v );
-				};
-
-
-	  var Element = BaseElement.extend( {
-      getNewView: function (  viewOpts ) {
-        return ( new DrpView( viewOpts ) );
-      },
-	    bindControl: function ( ) {
-	      var myself = this;
-
-	      myself.listenTo( myself.view , 'toggleMenu' , function ( value ) {
-	    			myself.state.set( 'isVisible', value );
-	  			} );
-
-	      myself.listenTo( myself.view , 'changeRange' , function ( newRange ){
-	      	// TODO: Blindly assuming the newRange only has range related properties.
-	      	myself.state.set( newRange );
-	      });
-
-        // TODO
-	      myself.listenTo( myself.view , 'select' , function( selectedItem ){
-	      	var items = clone( myself.state.get('predefined') );
-	      	forEach( items, function ( item ){
-	      		item.isSelected = ( isEqual( item , selectedItem ) );
-	      	});
-	      	myself.state.set('predefined', items );
-	     	});
-
-	    }
-	  } );
-
-	  return Element;
-
-	} )( BaseElement, DrpView );
 
 
 
@@ -494,33 +462,85 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 /***********************************************************************************************************************
  *
- * Day Calendar
+ * Abstract Calendar
  *
  **********************************************************************************************************************/
 
 
-  // View Definition
-  var DayCalendarView = ( function ( BaseView , $ , _ , moment ) {
+  // Controller Definition
+  var AbstractCalendarController = ( function ( BaseController ){
     //'use strict';
 
-    var isBoolean = _.isBoolean,
-    		partial = _.partial,
-    		bind = _.bind,
-    		partition = _.partition,
-    		forEach = _.forEach,
-    		clone = _.clone,
-    		isEmpty = _.isEmpty,
-    		first = _.first,
-    		rest = _.rest;
+    // TODO: Move this elsewhere.
+    function getLimit ( reference , limit ){
+      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
+      return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
+    }
+
+    return BaseController.extend( {
+      constructor: function ( element ){
+        this.base( element );
+
+        // Create Bindings
+        this.listenTo ( element.getView() , 'selectDate' , this.selectDate );
+      },
+      model2viewModel: function ( state , params ){
+        return {
+          range: this.generateRange( params.date , params.min , params.max , 'day' , 'month' ) ,
+          rowSize: 7
+        };
+      },
+      generateRange: function ( date , min , max , grain , span ){
+        var start  = getLimit( date , 'start' ),
+            end    = getLimit( date , 'end' ),
+            current   = start.clone(),
+            dates = [];
+
+        while ( current.isBefore( end ) ){
+          dates.push( {
+            date: current,
+            label: current.date(),
+            isSelected: current.isSame( date , grain ),
+            isDisabled:
+              ( min && current.isBefore( min , grain ) ) ||
+              ( max && current.isAfter ( max , grain ) ) ||
+              ( span && !current.isSame( date , span ) )
+          } );
+
+          current = current.clone();
+          current.add( 1, grain );
+        }
+
+        return dates;
+      },
+      selectDate: function ( newDate ){
+        this.trigger( 'selectDate' , newDate );
+      }
+
+    } );
+
+  } )( BaseController );
+
+
+  // View Definition
+  var AbstractCalendarView = ( function ( BaseView , $ , _ , moment ) {
+    //'use strict';
+
+    var partial = _.partial,
+        forEach = _.forEach,
+        clone = _.clone,
+        isEmpty = _.isEmpty,
+        first = _.first,
+        rest = _.rest;
 
     //--------------------------------//
-    
+
     function selfOrDescendant( target , selector ){
-    	return $(target).find(selector).addBack(selector);
+      return $( target ).find( selector ).addBack( selector );
     }
 
     function renderBody ( view , model ){
-      var $body = $( view.renderTemplate( view.getTemplate('body'), model ) ),
+      var $body = $( view.renderTemplate( view.getTemplate( 'body' ), model ) ),
           $rows = selfOrDescendant( $body , '.rows' ),
           rowSize = model.rowSize,
           items = clone( model.range ),
@@ -536,18 +556,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     }
 
     function renderRow ( view , model ){
-      var $row = $( view.renderTemplate( view.getTemplate('row') , model ) ),
+      var $row = $( view.renderTemplate( view.getTemplate( 'row' ) , model ) ),
           $items = selfOrDescendant( $row , '.items' );
 
       forEach( model.items , function ( item ){
         $items.append( renderItem( view , item ) );
-      });
+      } );
 
       return $row;
     }
 
     function renderItem ( view , model ){
-      var $item = $( view.renderTemplate( view.getTemplate('item') , model ) );
+      var $item = $( view.renderTemplate( view.getTemplate( 'item' ) , model ) );
 
       if ( !model.isDisabled ){
         $item.click( partial( selectDate , view , model.date.clone() ) );
@@ -557,22 +577,22 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     }
 
     function selectDate ( view , date ){
-      view.trigger('selectDate', date );
+      view.trigger( 'selectDate' , date );
     }
 
     //--------------------------------//
 
 
     var View = BaseView.extend( {
-    	templates: {
-    		row:  '<tr class="calendarRow items"></tr>',
-    		body: '<table><thead class="calendarHeader"></thead><tbody class="rows"></tbody></table>',
-    		item: '<td><div style=" {{#isDisabled}}color: grey;{{/isDisabled}} {{#isSelected}} background: green;{{/isSelected}}">{{ label }}</div></td>'
-    	},
-	    renderParent: function ( target , model ){
+      templates: {
+        row:  '<tr class="calendarRow items"></tr>',
+        body: '<table><thead class="calendarHeader"></thead><tbody class="rows"></tbody></table>',
+        item: '<td><div style=" {{#isDisabled}}color: grey;{{/isDisabled}} {{#isSelected}} background: green;{{/isSelected}}">{{ label }}</div></td>'
+      },
+      renderParent: function ( target , model ){
         return $( target ).append( renderBody( this , model.toJSON() ) );
-	    }
-	    
+      }
+
     } );
 
 
@@ -585,96 +605,196 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // DRP Element
-  var DayCalendarElement = ( function ( BaseElement , DayCalendarView  ) {
-  	//'use strict';
-	
-		var forEach = _.forEach,
-				extend = $.extend,
-				without = _.without,
-				isArray = _.isArray,
-				isObject = _.isObject,
-				isEqual = _.isEqual,
-				clone = function ( v ){
-					return !isObject(v) ? v : extend( true, isArray(v) ? [] : {} , v );
-				};
+  var AbstractCalendarElement = ( function ( BaseElement , AbstractCalendarView , AbstractCalendarController ) {
+    //'use strict';
+    var extend = _.extend;
 
-		//--------------------------------//
-    
-    	function getLimit ( reference , limit ){
-    		var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
-	    	return moment( reference ).clone()[op]('month')[op]('week');
-    	}
+    //--------------------------------//
+
+    return BaseElement.extend( {
+      constructor: function ( opts ){
+        this.base( opts );
+
+        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        this.setView( new AbstractCalendarView( viewOpts ) );
+
+        this.setController( new AbstractCalendarController( this ) );
+      }
+    } );
+
+  } )( BaseElement , AbstractCalendarView , AbstractCalendarController );
+
+
+
+
+
+
+
+/***********************************************************************************************************************
+ *
+ * Day Calendar
+ *
+ **********************************************************************************************************************/
+
+
+    // Controller Definition
+  var DayCalendarController = ( function ( BaseController ){
+    //'use strict';
+
+    function getLimit ( reference , limit ){
+      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
+      return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
+    }
+
+    return BaseController.extend( {
+      constructor: function ( element ){
+        this.base( element );
+
+        // Create Bindings
+        this.listenTo ( element.getView() , 'selectDate' , this.selectDate );
+      },
+      model2viewModel: function ( state , params ){
+        return {
+          range: this.generateRange( params.date , params.min , params.max , 'day' , 'month' ) ,
+          rowSize: 7
+        };
+      },
+      generateRange: function ( date , min , max , grain , span ){
+        var start  = getLimit( date , 'start' ),
+            end    = getLimit( date , 'end' ),
+            current   = start.clone(),
+            dates = [];
+
+        while ( current.isBefore( end ) ){
+          dates.push( {
+            date: current,
+            label: current.date(),
+            isSelected: current.isSame( date , grain ),
+            isDisabled:
+              ( min && current.isBefore( min , grain ) ) ||
+              ( max && current.isAfter ( max , grain ) ) ||
+              ( span && !current.isSame( date , span ) )
+          } );
+
+          current = current.clone();
+          current.add( 1, grain );
+        }
+
+        return dates;
+      },
+      selectDate: function ( newDate ){
+        this.trigger( 'selectDate' , newDate );
+      }
+
+    } );
+
+  } )( BaseController );
+
+
+  // View Definition
+  var DayCalendarView = ( function ( BaseView , $ , _ , moment ) {
+    //'use strict';
+
+    var isBoolean = _.isBoolean,
+        partial = _.partial,
+        bind = _.bind,
+        partition = _.partition,
+        forEach = _.forEach,
+        clone = _.clone,
+        isEmpty = _.isEmpty,
+        first = _.first,
+        rest = _.rest;
+
+    //--------------------------------//
+
+    function selfOrDescendant( target , selector ){
+      return $( target ).find( selector ).addBack( selector );
+    }
+
+    function renderBody ( view , model ){
+      var $body = $( view.renderTemplate( view.getTemplate( 'body' ), model ) ),
+          $rows = selfOrDescendant( $body , '.rows' ),
+          rowSize = model.rowSize,
+          items = clone( model.range ),
+          row;
+
+      while( !isEmpty( items ) ){
+        row = { items: first ( items , rowSize ) };
+        $rows.append( renderRow( view , row  ) );
+        items = rest( items ,  model.rowSize );
+      }
+
+      return $body;
+    }
+
+    function renderRow ( view , model ){
+      var $row = $( view.renderTemplate( view.getTemplate( 'row' ) , model ) ),
+          $items = selfOrDescendant( $row , '.items' );
+
+      forEach( model.items , function ( item ){
+        $items.append( renderItem( view , item ) );
+      } );
+
+      return $row;
+    }
+
+    function renderItem ( view , model ){
+      var $item = $( view.renderTemplate( view.getTemplate( 'item' ) , model ) );
+
+      if ( !model.isDisabled ){
+        $item.click( partial( selectDate , view , model.date.clone() ) );
+      }
+
+      return $item;
+    }
+
+    function selectDate ( view , date ){
+      view.trigger( 'selectDate' , date );
+    }
 
     //--------------------------------//
 
 
-	  var Element = BaseElement.extend( {
-
-      // View functions
-      getNewView: function (  viewOpts ) {
-        return ( new DayCalendarView( viewOpts ) );
+    var View = BaseView.extend( {
+      templates: {
+        row:  '<tr class="calendarRow items"></tr>',
+        body: '<table><thead class="calendarHeader"></thead><tbody class="rows"></tbody></table>',
+        item: '<td><div style=" {{#isDisabled}}color: grey;{{/isDisabled}} {{#isSelected}} background: green;{{/isSelected}}">{{ label }}</div></td>'
       },
-      getViewModel: function ( ){
-        var model = this.params,
-            date = model.get('date'),
-            max = model.get('max'),
-            min = model.get('min'),
-            newRange = this.generateRange( date , min , max , 'day' , 'month' );
-        return { range: newRange , rowSize: 7 }
-      },
+      renderParent: function ( target , model ){
+        return $( target ).append( renderBody( this , model.toJSON() ) );
+      }
 
-	    // Controller
-	    bindControl: function ( ) {
-	    	var myself = this;
+    } );
 
-	    	myself.listenTo( myself.view , 'selectDate', function ( newDate ){
-	    		myself.trigger('selectDate' , newDate );
-	    	});
 
-      },
+    return View;
 
-	    generateRange: function ( date , min , max , grain , span ){
-	    	var myself = this,
-	    			start  = getLimit( date , 'start' ),
-	    			end    = getLimit( date , 'end' ),
-	    			current   = start.clone(),
-	    			dates = [];
-
-	    	while ( current.isBefore( end ) ){
-	    		dates.push( {
-	    			date: current,
-						label: current.date(),
-						isSelected: current.isSame( date , grain ),
-						isDisabled: 
-              ( min && current.isBefore( min , grain ) ) || 
-              ( max && current.isAfter ( max , grain ) ) || 
-              ( span && !current.isSame( date , span ) )
-					} );
-
-	    		current = current.clone();
-					current.add(1, 'days');
-	    	}
-
-	    	return dates;
-	    }
-
-	  } );
-
-	  return Element;
-
-	} )( BaseElement , DayCalendarView  );
+  } )( BaseView , $ , _ , moment );
 
 
 
 
 
+  // DRP Element
+  var DayCalendarElement = ( function ( BaseElement , DayCalendarView , DayCalendarController ) {
+    //'use strict';
+    var extend = _.extend;
 
+    //--------------------------------//
 
+    return BaseElement.extend( {
+      constructor: function ( opts ){
+        this.base( opts );
 
+        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        this.setView( new DayCalendarView( viewOpts ) );
 
+        this.setController( new DayCalendarController( this ) );
+      }
+    } );
 
-
-
+  } )( BaseElement , DayCalendarView , DayCalendarController );
 
 
 
@@ -687,14 +807,112 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
 
+
+  var DrpController = ( function ( _ , BaseController ){
+    //'use strict';
+
+    var partial = _.partial;
+
+    function partialRight( fn ){
+
+    }
+
+    //--------------------------------//
+
+    return BaseController.extend( {
+      constructor: function ( element ){
+
+        // Create Bindings
+        // Bind day start and date end params to internal temp state
+        this.listenToChange( element.getParams() , 'start', element.getState().getSetter( 'start' ) );
+        this.listenToChange( element.getParams() , 'end', element.getState().getSetter( 'end' ) );
+
+        // TODO: temporarily copying predefined to internal state
+        this.listenToChange( element.getParams() , 'predefined' , element.getState().getSetter( 'predefined' ) );
+
+        this.listenTo( element.getView() , 'clickOutside'   , this.toggleDropdown );
+        this.listenTo( element.getView() , 'clickOnRange' , this.toggleDropdown );
+
+        this.listenTo( element.getView() , 'changeRange' , this.updateRange );
+
+        // TODO: Make this more generic to account for all the selector paremeters
+        this.listenTo( element.getView() , 'cancel' , this.cancelAndClose );
+
+        this.listenTo( element.getView() , 'apply' , this.applyAndClose );
+
+        // TODO: Clean up predefined
+        this.listenTo( element.getView() , 'select' , function( selectedItem ){
+          var items = clone( this.getState().get( 'predefined' ) );
+          forEach( items, function ( item ){
+            item.isSelected = ( isEqual( item , selectedItem ) );
+          } );
+          this.getState().set( 'predefined', items );
+        } );
+
+      },
+
+      updateRange: function ( newRange ){
+        this.getState().set( newRange );
+      },
+
+      toggleDropdown: function ( value ){
+        if ( value ){
+          this.getState().set( 'isDropdownOpen' , true );
+        } else {
+          this.cancelSelection();
+          this.getState().set( 'isDropdownOpen' , false );
+        }
+      },
+
+      cancelSelection: function (){
+        this.getState().set( 'start' , this.getParams().get('start') );
+        this.getState().set( 'end' , this.getParams().get('end') );
+      },
+      applySelection: function (){
+        this.trigger( 'change' , {
+          start: this.getState().get('start'),
+          end: this.getState().get('end')
+        } );
+      },
+
+      cancelAndClose: function (){
+        this.cancelSelection();
+        this.getState().set( 'isDropdownOpen' , false );
+      },
+      applyAndClose: function (){
+        this.applySelection();
+        this.getState().set( 'isDropdownOpen' , true );
+      },
+
+      model2viewModel: function ( state , params ){
+        var start = state.start,
+            end = state.end,
+            range = ( start && start.format( 'YYYY-MM-DD' ) ) + ' To ' + ( end && end.format( 'YYYY-MM-DD' ) );
+
+        return {
+          range: range,
+          start: start,
+          end:   end,
+          predefined: state.predefined ,
+          isDropdownOpen: state.isDropdownOpen
+        };
+      }
+
+    } );
+
+  } )( _ , BaseController );
+
+
+
+
   // View Definition
   var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement ) {
     //'use strict';
 
     var isBoolean = _.isBoolean,
-    		partial = _.partial,
-    		bind = _.bind,
-    		forEach = _.forEach;
+        partial = _.partial,
+        bind = _.bind,
+        forEach = _.forEach;
 
     //--------------------------------//
 
@@ -715,108 +933,118 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     var View = BaseView.extend( {
       events: {
-        'click .rangeDisplay': 'toggleMenu'
+        'click .rangeDisplay': 'clickOnRange',
+        'click .applyButton': 'apply',
+        'click .cancelButton': 'cancel'
       },
       template:
-	      '<div class="drpContainer">' +
-	      '  <div class="rangeDisplay">' +
-	      '    <span> {{ range }} </span> ' +
-	      '  </div> ' +
-	      '  <div class="dropdown {{^isVisible}}hidden{{/isVisible}}"> ' +
-	      '    <br> ' +
-	      '    <div class="items"> ' +
-	      '      {{#predefined}} ' +
-	      '        <div class="selectionItems {{#isSelected}}selected{{/isSelected}} "> ' +
-	      '        </div>' +
-	      '      {{/predefined}}' +
-	      '    </div> ' +
-	      '    <br> ' +
-	      '    <div class="startCalendar"></div> ' +
-	     	'    <br> ' +
-	      '    <div class="endCalendar"></div> ' +
-	      '    <br> ' +
-	      '    <div class="speedyCalendar"></div> ' +
-	      '    <br> ' +
-	      '    <div class="slowPokeCalendar"></div> ' +
-	      '  </div> ' +
-	      '</div>',
-      toggleMenu: function ( predicate ) {
-        var newPredicate =  isBoolean( predicate ) ? predicate : !( this.getViewModel().get('isVisible') );
-        this.trigger( 'toggleMenu', newPredicate );
+        '<div class="drpContainer">' +
+        '  <div class="rangeDisplay">' +
+        '    <span> {{ range }} </span> ' +
+        '  </div> ' +
+        '  <div class="dropdown {{^isDropdownOpen}}hidden{{/isDropdownOpen}}"> ' +
+        '    <div class="buttonsContainer">' +
+        '      <button class="applyButton">Apply</button>' +
+        '      <button class="cancelButton">Cancel</button>' +
+        '    </div>' +
+        '    <br> ' +
+        '    <div class="items"> ' +
+        '      {{#predefined}} ' +
+        '        <div class="selectionItems {{#isSelected}}selected{{/isSelected}} "> ' +
+        '        </div>' +
+        '      {{/predefined}}' +
+        '    </div> ' +
+        '    <br> ' +
+        '    <div class="startCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="endCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="speedyCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="slowPokeCalendar"></div> ' +
+        '  </div> ' +
+        '</div>',
+      clickOnRange: function ( predicate ) {
+        this.trigger( 'clickOnDisplay' );
+      },
+      apply: function (){
+        this.trigger( 'apply' );
+      },
+      cancel: function (){
+        this.trigger( 'cancel' );
+      },
+      clickOutside: function (){
+        this.trigger( 'clickOutside' );
       },
       constructor: function () {
         this.base.apply( this, arguments );
 
-        var closeMenu = partial( bind( this.toggleMenu , this ) , false );
+        var clickOutside = bind( this.clickOutside , this, false ) ;
         // TODO: verify if there are no ghost events.
-        bindToPage( this.el , closeMenu );
+        bindToPage( this.el , clickOutside );
 
       },
-      renderChildren: function ( target ,  model ) {
-      	var $items = $(target).find( '.selectionItems' ),
-      			myself = this;
+      renderChildren: function ( target , model ) {
+        var $items = $( target ).find( '.selectionItems' ),
+            myself = this;
+
+        forEach( model.get( 'predefined' ) , function ( config , idx ) {
+
+          var item = new PredefinedElement( {
+            target: $( $items[ idx ] )
+          } );
+
+          item.update( config );
+          myself.listenTo( item , 'activate' , function ( newRange ) {
+            myself.trigger( 'changeRange' , newRange );
+            myself.trigger( 'select' , config );
+          } );
+        } );
+
+        var startCalendar = new DayCalendarElement( {
+          target: $( target ).find( '.startCalendar' )
+        } );
+        startCalendar.update( {
+          date: model.get( 'start' )
+        } );
+        myself.listenTo( startCalendar , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
 
 
 
-      	forEach( model.get('predefined') , function ( config , idx ) {
-			    
-			    var item = new PredefinedElement( {
-			      target: $( $items[idx] )
-			    } );
-			    
-			    item.update( config );
-			    myself.listenTo( item , 'activate' , function ( newRange ) {
-			    	myself.trigger( 'changeRange' , newRange );
-			    	myself.trigger( 'select' , config );
-			    } );
-			  } );
+        var endCalendar = new DayCalendarElement( {
+          target: $( target ).find( '.endCalendar' )
+        } );
+        endCalendar.update( {
+          date: model.get( 'end' )
+        } );
+        myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
+          myself.trigger( 'changeRange' , { end: newEnd } );
+          myself.trigger( 'select' , null );
+        } );
 
 
 
-      	var startCalendar = new DayCalendarElement({
-      		target: $(target).find('.startCalendar')
-      	});
-      	startCalendar.update({
-      		date: model.get('start')
-      	});
-    		myself.listenTo( startCalendar , 'selectDate' , function ( newStart ) {
-		    	myself.trigger( 'changeRange' , { start: newStart } );
-		    	myself.trigger( 'select' , null );
-		    } );
-
-
-
-      	var endCalendar = new DayCalendarElement({
-      		target: $(target).find('.endCalendar')
-      	});
-      	endCalendar.update({
-      		date: model.get('end')
-      	});
-      	myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
-		    	myself.trigger( 'changeRange' , { end: newEnd } );
-		    	myself.trigger( 'select' , null );
-		    } );
-
-
-
-		    var speedyCalendar = new DayCalendarElement({
-      		target: $(target).find('.speedyCalendar')
-      	});
-      	speedyCalendar.update({
-      		date: ( model.get('end') ? model.get('end').clone().add(42,'day') : null )
-      	});
-/*      	myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
-		    	myself.trigger( 'changeRange' , { end: newEnd } );
-		    	myself.trigger( 'select' , null );
-		    } );
+        var speedyCalendar = new DayCalendarElement( {
+          target: $( target ).find( '.speedyCalendar' )
+        } );
+        speedyCalendar.update( {
+          date: ( model.get( 'end' ) ? model.get( 'end' ).clone().add( 42,'day' ) : null )
+        } );
+/*        myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
+          myself.trigger( 'changeRange' , { end: newEnd } );
+          myself.trigger( 'select' , null );
+        } );
 */
 
-		    var slowPokeCalendar = new DayCalendarElement({
-      		target: $(target).find('.slowPokeCalendar')
-      	});
-      	slowPokeCalendar.update({
-      		date: (model.get('start') ? model.get('start').clone().add(4,'day') : null )
-      	});
+        var slowPokeCalendar = new DayCalendarElement( {
+          target: $( target ).find( '.slowPokeCalendar' )
+        } );
+        slowPokeCalendar.update( {
+          date: ( model.get( 'start' ) ? model.get( 'start' ).clone().add( 4,'day' ) : null )
+        } );
 
       }
 
@@ -828,75 +1056,26 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement );
 
 
+
+
   // DRP Element
-  var DrpElement = ( function ( BaseElement , DrpView  ) {
-  	//'use strict';
-	
-		var forEach = _.forEach,
-				extend = $.extend,
-				without = _.without,
-				isArray = _.isArray,
-				isObject = _.isObject,
-				isEqual = _.isEqual,
-				clone = function ( v ){
-					return !isObject(v) ? v : extend( true, isArray(v) ? [] : {} , v );
-				};
+  var DrpElement = ( function ( BaseElement , DrpView , DrpController ) {
+    //'use strict';
+    var extend = _.extend;
 
+    return BaseElement.extend( {
+      constructor: function ( opts ){
+        this.base( opts );
 
+        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        this.setView( new DrpView( viewOpts ) );
 
-	  var Element = BaseElement.extend( {
+        this.setController( new DrpController( this ) );
 
-      getNewView: function (  viewOpts ) {
-        return ( new DrpView( viewOpts ) );
-      },
-      getViewModel: function (){
-        var start = this.params.get('start'),
-            end = this.params.get('end'),
-            range = start.format( 'YYYY-MM-DD' ) + ' To ' + end.format( 'YYYY-MM-DD' );
+      }
+    } );
 
-        return {
-          range: range,
-          start: start,
-          end:   end,
-          predefined: this.state.get('predefined'),
-          isVisible: this.state.get('isVisible')
-        }
-      },
-
-	    bindControl: function ( ) {
-	      var myself = this;
-
-        // TODO: temporarily copying predefined to internal state
-        myself.listenTo( myself.params , 'change:predefined' , function ( inputModel , predefined ){
-          myself.state.set( 'predefined' , predefined );
-        });
-
-	      myself.listenTo( myself.view , 'toggleMenu' , function ( value ) {
-	    			myself.state.set( 'isVisible', value );
-	  			} );
-
-	      myself.listenTo( myself.view , 'changeRange' , function ( newRange ){
-	      	// TODO: Blindly assuming the newRange only has range related properties.
-	      	myself.trigger( 'change' , newRange );
-	      });
-
-	      myself.listenTo( myself.view , 'select' , function( selectedItem ){
-	      	var items = clone( myself.state.get('predefined') );
-	      	forEach( items, function ( item ){
-	      		item.isSelected = ( isEqual( item , selectedItem ) );
-	      	});
-	      	myself.state.set('predefined', items );
-	     	});
-
-	    }
-	  } );
-
-	  return Element;
-
-	} )( BaseElement, DrpView );
-
-
-
+  } )( BaseElement, DrpView , DrpController );
 
 
 
@@ -923,10 +1102,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   var items = [
-    {	label: 'Month to Date', getRange: function ( ){ return { start: moment().startOf('month') , end: moment() } } },
-    { label: 'Last 7 Days', getRange: function ( ){ return { start: moment().add(-7,'days') , end: moment() } } },
-    { label: 'Year to Date', getRange: function ( ){ return { start: moment().startOf('year'), end: moment() } } }
-    ]
+    { label: 'Month to Date', getRange: function ( ){ return { start: moment().startOf( 'month' ) , end: moment() }; } },
+    { label: 'Last 7 Days', getRange: function ( ){ return { start: moment().add( -7,'days' ) , end: moment() }; } },
+    { label: 'Year to Date', getRange: function ( ){ return { start: moment().startOf( 'year' ), end: moment() }; } }
+    ];
 
   drp.update( {
     'start': moment(),
@@ -936,7 +1115,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   drp.listenTo( drp , 'change' , function ( newRange ){
     drp.update( newRange );
-  });
+  } );
 
 
 
