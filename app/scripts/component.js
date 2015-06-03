@@ -359,7 +359,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       }
     } );
 
-  } )( BaseController );
+  } )( DrpBaseController );
 
 
   // View Definition
@@ -484,7 +484,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-  } )( BaseController );
+  } )( DrpBaseController );
 
 
   // View Definition
@@ -641,7 +641,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-  } )( BaseController );
+  } )( DrpBaseController );
 
 
   // View Definition
@@ -746,7 +746,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  var DrpController = ( function ( _ , DrpBaseController ){
+  var DrpController = ( function ( _ , BaseController ){
     //'use strict';
 
     function partialRight( fn ){
@@ -755,7 +755,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     //--------------------------------//
 
-    return DrpBaseController.extend( {
+    return BaseController.extend( {
       constructor: function ( element ){
         this.base( element );
 
