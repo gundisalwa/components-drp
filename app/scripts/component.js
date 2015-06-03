@@ -20,15 +20,15 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   //   and events functionality.
   var BaseBone = ( function ( _ , Base , Backbone ) {
     //'use strict';
-    var Events = Backbone.Events,
-        rest = _.rest,
-        noop = function (){};
+    var Events = Backbone.Events;
+
+    function noop (){}
 
 
     //--------------------------------//
 
     function extendClass ( TargetClass  ) {
-      var NewClass = Base.extend.apply( TargetClass, rest( arguments ) );
+      var NewClass = Base.extend.apply( TargetClass, _.rest( arguments ) );
       return NewClass;
     }
 
@@ -115,14 +115,13 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // Base Model
   var BaseModel = ( function ( _ , BaseBone , Backbone ) {
     //'use strict';
-    var bind = _.bind;
 
     return BaseBone.basebonify( Backbone.Model , {
       getSetter: function ( attributeName ){
-        return bind( this.set , this , attributeName );
+        return _.bind( this.set , this , attributeName );
       },
       getGetter: function ( attributeName ){
-        return bind( this.get , this , attributeName );
+        return _.bind( this.get , this , attributeName );
       }
     } );
 
@@ -132,9 +131,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   var BaseController = ( function ( _ , BaseBone ){
     //'use strict';
-    var bind = _.bind;
-
-    //--------------------------------//
 
     return BaseBone.extend( {
       constructor: function ( element ){
@@ -159,16 +155,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           params: params
         };
       },
-      listenToChange: function ( model , attributeName , callback ){
-        var eventName = "change:" + attributeName,
-            boundcallback = bind( callback , this );
-
-        function wrapCallback ( model , value , options ){
-          return boundcallback( value , options );
-        }
-
-        return this.listenTo( model , eventName , wrapCallback );
-      },
 
       renderView: function ( ){
         var state = this.getElement().getState().toJSON(),
@@ -188,19 +174,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var BaseView = ( function ( _ , $ , Mustache , BaseBone , Backbone , BaseModel ) {
     //'use strict';
 
-    var identity = _.identity,
-        isString = _.isString,
-        isEqual = _.isEqual;
-
-    //--------------------------------//
-
     return BaseBone.basebonify( Backbone.View ,{
       constructor: function ( config ) {
         this.base.apply( this, arguments );
 
-        config = config || {};
-
-        if ( config.target ){
+        if ( config && config.target ){
           this.setElement( $( config.target ) );
         }
 
@@ -218,7 +196,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         return this.$el;
       },
       getTemplate: function ( key ) {
-        return ( isString( key ) && this.templates && this.templates[ key ] ) || this.template;
+        return ( _.isString( key ) && this.templates && this.templates[ key ] ) || this.template;
       },
 
       render: function ( model ) {
@@ -244,7 +222,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       renderTemplate: function ( template , data ){
         return Mustache.render( template ,  data );
       },
-      renderChildren: identity
+      renderChildren: _.identity
 
     } );
 
@@ -255,16 +233,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // Base Element
   var BaseElement = ( function ( _ , BaseBone , BaseView , BaseModel  ) {
     //'use strict';
-
-    var isFunction = _.isFunction,
-        isArray = _.isArray,
-        reduce = _.reduce,
-        identity = _.identity,
-        noop = function (){},
-        partial = _.partial,
-        extend = _.extend;
-
-    //--------------------------------//
 
     return BaseBone.extend( {
 
@@ -340,14 +308,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var DrpBaseController = ( function ( _ , BaseController ){
     // 'use strict';
 
-    var bind = _.bind;
-
     return BaseController.extend({
       listenTo: function ( observed , eventName , callback ){
         var modifiedCallback = callback;
 
-        if ( eventName.match(/^change:/) ){
-          var boundcallback = bind( callback , this );
+        if ( eventName.match(/^change:.*$/) ){
+          var boundcallback = _.bind( callback , this );
           
           modifiedCallback = function ( model , value , options ){
             return boundcallback( value , options );
@@ -419,13 +385,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // Element Definition
   var PredefinedElement = ( function ( BaseElement , PredefinedView , PredefinedController ) {
     //'use strict';
-    var extend = _.extend;
 
     return BaseElement.extend( {
       constructor: function ( opts ){
         this.base( opts );
 
-        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
         this.setView( new PredefinedView( viewOpts ) );
 
         this.setController( new PredefinedController( this ) );
@@ -526,15 +491,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var AbstractCalendarView = ( function ( BaseView , $ , _ , moment ) {
     //'use strict';
 
-    var partial = _.partial,
-        forEach = _.forEach,
-        clone = _.clone,
-        isEmpty = _.isEmpty,
-        first = _.first,
-        rest = _.rest;
-
-    //--------------------------------//
-
     function selfOrDescendant( target , selector ){
       return $( target ).find( selector ).addBack( selector );
     }
@@ -543,13 +499,13 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $body = $( view.renderTemplate( view.getTemplate( 'body' ), model ) ),
           $rows = selfOrDescendant( $body , '.rows' ),
           rowSize = model.rowSize,
-          items = clone( model.range ),
+          items = _.clone( model.range ),
           row;
 
-      while( !isEmpty( items ) ){
-        row = { items: first ( items , rowSize ) };
+      while( !_.isEmpty( items ) ){
+        row = { items: _.first ( items , rowSize ) };
         $rows.append( renderRow( view , row  ) );
-        items = rest( items ,  model.rowSize );
+        items = _.rest( items ,  model.rowSize );
       }
 
       return $body;
@@ -559,7 +515,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $row = $( view.renderTemplate( view.getTemplate( 'row' ) , model ) ),
           $items = selfOrDescendant( $row , '.items' );
 
-      forEach( model.items , function ( item ){
+      _.forEach( model.items , function ( item ){
         $items.append( renderItem( view , item ) );
       } );
 
@@ -570,7 +526,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $item = $( view.renderTemplate( view.getTemplate( 'item' ) , model ) );
 
       if ( !model.isDisabled ){
-        $item.click( partial( selectDate , view , model.date.clone() ) );
+        $item.click( _.partial( selectDate , view , model.date.clone() ) );
       }
 
       return $item;
@@ -607,15 +563,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // DRP Element
   var AbstractCalendarElement = ( function ( BaseElement , AbstractCalendarView , AbstractCalendarController ) {
     //'use strict';
-    var extend = _.extend;
-
-    //--------------------------------//
 
     return BaseElement.extend( {
       constructor: function ( opts ){
         this.base( opts );
 
-        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
         this.setView( new AbstractCalendarView( viewOpts ) );
 
         this.setController( new AbstractCalendarController( this ) );
@@ -695,18 +648,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var DayCalendarView = ( function ( BaseView , $ , _ , moment ) {
     //'use strict';
 
-    var isBoolean = _.isBoolean,
-        partial = _.partial,
-        bind = _.bind,
-        partition = _.partition,
-        forEach = _.forEach,
-        clone = _.clone,
-        isEmpty = _.isEmpty,
-        first = _.first,
-        rest = _.rest;
-
-    //--------------------------------//
-
     function selfOrDescendant( target , selector ){
       return $( target ).find( selector ).addBack( selector );
     }
@@ -715,13 +656,13 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $body = $( view.renderTemplate( view.getTemplate( 'body' ), model ) ),
           $rows = selfOrDescendant( $body , '.rows' ),
           rowSize = model.rowSize,
-          items = clone( model.range ),
+          items = _.clone( model.range ),
           row;
 
-      while( !isEmpty( items ) ){
-        row = { items: first ( items , rowSize ) };
+      while( !_.isEmpty( items ) ){
+        row = { items: _.first ( items , rowSize ) };
         $rows.append( renderRow( view , row  ) );
-        items = rest( items ,  model.rowSize );
+        items = _.rest( items ,  model.rowSize );
       }
 
       return $body;
@@ -731,7 +672,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $row = $( view.renderTemplate( view.getTemplate( 'row' ) , model ) ),
           $items = selfOrDescendant( $row , '.items' );
 
-      forEach( model.items , function ( item ){
+      _.forEach( model.items , function ( item ){
         $items.append( renderItem( view , item ) );
       } );
 
@@ -742,7 +683,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       var $item = $( view.renderTemplate( view.getTemplate( 'item' ) , model ) );
 
       if ( !model.isDisabled ){
-        $item.click( partial( selectDate , view , model.date.clone() ) );
+        $item.click( _.partial( selectDate , view , model.date.clone() ) );
       }
 
       return $item;
@@ -779,15 +720,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // DRP Element
   var DayCalendarElement = ( function ( BaseElement , DayCalendarView , DayCalendarController ) {
     //'use strict';
-    var extend = _.extend;
-
-    //--------------------------------//
 
     return BaseElement.extend( {
       constructor: function ( opts ){
         this.base( opts );
 
-        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
         this.setView( new DayCalendarView( viewOpts ) );
 
         this.setController( new DayCalendarController( this ) );
@@ -808,10 +746,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  var DrpController = ( function ( _ , BaseController ){
+  var DrpController = ( function ( _ , DrpBaseController ){
     //'use strict';
-
-    var partial = _.partial;
 
     function partialRight( fn ){
 
@@ -819,19 +755,20 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     //--------------------------------//
 
-    return BaseController.extend( {
+    return DrpBaseController.extend( {
       constructor: function ( element ){
+        this.base( element );
 
         // Create Bindings
         // Bind day start and date end params to internal temp state
-        this.listenToChange( element.getParams() , 'start', element.getState().getSetter( 'start' ) );
-        this.listenToChange( element.getParams() , 'end', element.getState().getSetter( 'end' ) );
+        this.listenTo( element.getParams() , 'change:start', element.getState().getSetter( 'start' ) );
+        this.listenTo( element.getParams() , 'change:end', element.getState().getSetter( 'end' ) );
 
         // TODO: temporarily copying predefined to internal state
-        this.listenToChange( element.getParams() , 'predefined' , element.getState().getSetter( 'predefined' ) );
+        this.listenTo( element.getParams() , 'change:predefined' , element.getState().getSetter( 'predefined' ) );
 
         this.listenTo( element.getView() , 'clickOutside'   , this.toggleDropdown );
-        this.listenTo( element.getView() , 'clickOnRange' , this.toggleDropdown );
+        this.listenTo( element.getView() , 'clickOnDisplay' , this.toggleDropdown );
 
         this.listenTo( element.getView() , 'changeRange' , this.updateRange );
 
@@ -842,46 +779,47 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         // TODO: Clean up predefined
         this.listenTo( element.getView() , 'select' , function( selectedItem ){
-          var items = clone( this.getState().get( 'predefined' ) );
-          forEach( items, function ( item ){
-            item.isSelected = ( isEqual( item , selectedItem ) );
+          var items = _.clone( element.getState().get( 'predefined' ) );
+          _.forEach( items, function ( item ){
+            item.isSelected = ( _.isEqual( item , selectedItem ) );
           } );
-          this.getState().set( 'predefined', items );
+          element.getState().set( 'predefined', items );
         } );
 
       },
 
       updateRange: function ( newRange ){
-        this.getState().set( newRange );
+        this.getElement().getState().set( newRange );
       },
 
       toggleDropdown: function ( value ){
-        if ( value ){
-          this.getState().set( 'isDropdownOpen' , true );
-        } else {
+        var el = this.getElement(),
+            newValue = _.isUndefined( value ) ? !el.getState().get('isDropdownOpen') : value;
+        if ( !newValue ){
           this.cancelSelection();
-          this.getState().set( 'isDropdownOpen' , false );
         }
+        el.getState().set( 'isDropdownOpen' , newValue );
       },
 
       cancelSelection: function (){
-        this.getState().set( 'start' , this.getParams().get('start') );
-        this.getState().set( 'end' , this.getParams().get('end') );
+        var el = this.getElement();
+        el.getState().set( 'start' , el.getParams().get('start') );
+        el.getState().set( 'end' , el.getParams().get('end') );
       },
       applySelection: function (){
         this.trigger( 'change' , {
-          start: this.getState().get('start'),
-          end: this.getState().get('end')
+          start: this.getElement().getState().get('start'),
+          end: this.getElement().getState().get('end')
         } );
       },
 
       cancelAndClose: function (){
         this.cancelSelection();
-        this.getState().set( 'isDropdownOpen' , false );
+        this.getElement().getState().set( 'isDropdownOpen' , false );
       },
       applyAndClose: function (){
         this.applySelection();
-        this.getState().set( 'isDropdownOpen' , true );
+        this.getElement().getState().set( 'isDropdownOpen' , false );
       },
 
       model2viewModel: function ( state , params ){
@@ -900,7 +838,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-  } )( _ , BaseController );
+  } )( _ , DrpBaseController );
 
 
 
@@ -908,14 +846,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // View Definition
   var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement ) {
     //'use strict';
-
-    var isBoolean = _.isBoolean,
-        partial = _.partial,
-        bind = _.bind,
-        forEach = _.forEach;
-
-    //--------------------------------//
-
 
     function bindToPage ( target , callback ) {
       return $( document ).on( 'click', function ( ev ) {
@@ -979,7 +909,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       constructor: function () {
         this.base.apply( this, arguments );
 
-        var clickOutside = bind( this.clickOutside , this, false ) ;
+        var clickOutside = _.bind( this.clickOutside , this, false ) ;
         // TODO: verify if there are no ghost events.
         bindToPage( this.el , clickOutside );
 
@@ -988,7 +918,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var $items = $( target ).find( '.selectionItems' ),
             myself = this;
 
-        forEach( model.get( 'predefined' ) , function ( config , idx ) {
+        _.forEach( model.get( 'predefined' ) , function ( config , idx ) {
 
           var item = new PredefinedElement( {
             target: $( $items[ idx ] )
@@ -1061,13 +991,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // DRP Element
   var DrpElement = ( function ( BaseElement , DrpView , DrpController ) {
     //'use strict';
-    var extend = _.extend;
 
     return BaseElement.extend( {
       constructor: function ( opts ){
         this.base( opts );
 
-        var viewOpts = extend( { target: opts.target } , opts.viewOpts );
+        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
         this.setView( new DrpView( viewOpts ) );
 
         this.setController( new DrpController( this ) );
