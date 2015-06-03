@@ -186,7 +186,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
 
       setModel: function ( model ){
-        this.model = model;        
+        this.model = model;
       },
       getModel: function (){
         return this.model;
@@ -308,18 +308,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var DrpBaseController = ( function ( _ , BaseController ){
     // 'use strict';
 
-    return BaseController.extend({
+    return BaseController.extend( {
       listenTo: function ( observed , eventName , callback ){
         var modifiedCallback = callback;
 
-        if ( eventName.match(/^change:.*$/) ){
+        if ( eventName.match( /^change:.*$/ ) ){
           var boundcallback = _.bind( callback , this );
-          
+
           modifiedCallback = function ( model , value , options ){
             return boundcallback( value , options );
-          }
-        }
-        
+          };
+        };
+
         return this.base( observed , eventName , modifiedCallback );
       }
     } );
