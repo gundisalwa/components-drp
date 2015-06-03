@@ -9,7 +9,6 @@
 	"disallowTrailingComma" : true,
 	"disallowSpaceAfterObjectKeys": true,
 	"disallowTrailingWhitespace": true,
-	"requireYodaConditions" : true,
 	"requireSpacesInsideParentheses": {
 		"all" : true
 	},
