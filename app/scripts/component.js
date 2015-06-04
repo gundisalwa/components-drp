@@ -24,7 +24,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     function noop (){}
 
-
     //--------------------------------//
 
     function extendClass ( TargetClass  ) {
@@ -794,7 +793,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
       toggleDropdown: function ( value ){
         var el = this.getElement(),
-            newValue = _.isUndefined( value ) ? !el.getState().get('isDropdownOpen') : value;
+            newValue = _.isUndefined( value ) ? !el.getState().get( 'isDropdownOpen' ) : value;
         if ( !newValue ){
           this.cancelSelection();
         }
@@ -803,13 +802,13 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
       cancelSelection: function (){
         var el = this.getElement();
-        el.getState().set( 'start' , el.getParams().get('start') );
-        el.getState().set( 'end' , el.getParams().get('end') );
+        el.getState().set( 'start' , el.getParams().get( 'start' ) );
+        el.getState().set( 'end' , el.getParams().get( 'end' ) );
       },
       applySelection: function (){
         this.trigger( 'change' , {
-          start: this.getElement().getState().get('start'),
-          end: this.getElement().getState().get('end')
+          start: this.getElement().getState().get( 'start' ),
+          end: this.getElement().getState().get( 'end' )
         } );
       },
 
@@ -863,7 +862,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     var View = BaseView.extend( {
       events: {
-        'click .rangeDisplay': 'clickOnRange',
+        'click .rangeDisplay': 'clickOnDisplay',
         'click .applyButton': 'apply',
         'click .cancelButton': 'cancel'
       },
@@ -894,7 +893,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    <div class="slowPokeCalendar"></div> ' +
         '  </div> ' +
         '</div>',
-      clickOnRange: function ( predicate ) {
+      clickOnDisplay: function ( predicate ) {
         this.trigger( 'clickOnDisplay' );
       },
       apply: function (){
