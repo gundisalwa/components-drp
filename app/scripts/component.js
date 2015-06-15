@@ -681,6 +681,113 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   } )( _ , moment , CalendarElement );
 
 
+/***********************************************************************************************************************
+ *
+ * Calendar Dialog
+ *
+ **********************************************************************************************************************/
+
+
+  var CalendarDialogView = ( function ( BaseView , DayCalendarElement , MonthCalendarElement , WeekCalendarElement , YearCalendarElement ){
+    // 'use strict';
+    
+    function getCalendarElement ( mode ){
+      var map = {
+        'day' : DayCalendarElement,
+        'week': WeekCalendarElement,
+        'month': MonthCalendarElement,
+        'year': YearCalendarElement
+      };
+      return ( mode && map[mode] ) || map['day'];
+    }
+    
+    return BaseView.extend({
+      events:{
+        'click .dayMode': 'selectDay',
+        'click .weekMode': 'selectWeek',
+        'click .monthMode': 'selectMonth',
+        'click .yearMode': 'selectYear'
+      },
+      selectDay: function ( mode ){ this.selectMode('day') },
+      selectWeek: function ( mode ){ this.selectMode('week') },
+      selectMonth: function ( mode ){ this.selectMode('month') },
+      selectYear: function ( mode ){ this.selectMode('year') },
+      selectMode: function ( mode ){
+        this.trigger('selectMode', mode );
+      },
+      template: 
+        '<div>' +
+        '  <div class="modesContainer">' +
+        '    <div class="dayMode">Day</div>' +
+        '    <div class="weekMode">Week</div>' +
+        '    <div class="monthMode">Month</div>' +
+        '    <div class="yearMode">Year</div>' +
+        '  </div>'+
+        '  <div class="calendarContainer">' +
+        '  </div>' +
+        '</div>',
+      renderChildren: function ( target , model ){
+        var myself = this;
+
+        var CurrentCalendar = getCalendarElement( model.get('mode') ),
+            calendar = new CurrentCalendar( {
+              target: $(target).find('.calendarContainer') 
+            });
+        calendar.update({
+          date: model.get('date')
+        });
+        myself.listenTo( calendar , 'selectDate' , function ( newDate ) {
+          myself.trigger( 'selectDate' , newDate );
+        });
+      }
+    });
+
+  })( BaseView , DayCalendarElement , MonthCalendarElement , WeekCalendarElement , YearCalendarElement );
+
+
+  var CalendarDialogController = ( function ( BaseController ){
+    // 'use strict';
+    
+    return BaseController.extend({
+      constructor: function ( element ){
+        this.base(element);
+
+        this.listenTo( element.getView() , 'selectDate' , this.selectDate );
+
+        this.listenTo( element.getView() , 'selectMode' , element.getState().getSetter( 'mode' ) );
+      },
+      model2viewModel: function ( state ,  params ){
+        return {
+          mode: state.mode,
+          date: params.date
+        }
+      },
+      selectDate: function ( newDate ){
+        this.trigger( 'selectDate' , newDate );
+      }
+    });
+
+  })( BaseController );
+
+
+  var CalendarDialogElement = ( function ( BaseElement , CalendarDialogView , CalendarDialogController ) {
+    //'use strict';
+
+    return BaseElement.extend( {
+      constructor: function ( opts ){
+        this.base( opts );
+
+        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
+        this.setView( new CalendarDialogView( viewOpts ) );
+
+        this.setController( new CalendarDialogController( this ) );
+
+      }
+    } );
+
+  } )( BaseElement, CalendarDialogView , CalendarDialogController );
+
+
 
 /***********************************************************************************************************************
  *
@@ -788,7 +895,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // View Definition
-  var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement ) {
+  var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement , CalendarDialogElement ) {
     //'use strict';
 
     function bindToPage ( target , callback ) {
@@ -842,6 +949,9 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    <div class="speedyCalendar"></div> ' +
         '    <br> ' +
         '    <div class="slowPokeCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="startDialog"></div> ' +
+        '    <br> ' +
         '  </div> ' +
         '</div>',
       clickOnDisplay: function ( predicate ) {
@@ -880,7 +990,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
             myself.trigger( 'select' , config );
           } );
         } );
-
 
         var startCalendar = new DayCalendarElement( {
           target: $( target ).find( '.startCalendar' )
@@ -966,6 +1075,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           date: ( model.get( 'start' ) ? model.get( 'start' ).clone().add( 4,'day' ) : null )
         } );
 
+
+        var startCalendarDialog = new CalendarDialogElement( {
+          target: $( target ).find( '.startDialog' )
+        } );
+        startCalendarDialog.update( {
+          date: model.get( 'start' )
+        } );
+        myself.listenTo( startCalendarDialog , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
+
       }
 
     } );
@@ -973,7 +1094,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     return View;
 
-  } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement );
+  } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement , CalendarDialogElement );
 
 
 
