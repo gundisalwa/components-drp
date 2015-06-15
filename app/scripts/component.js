@@ -415,188 +415,32 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
 
-
-
-
-
-
-
-
-
-
-/***********************************************************************************************************************
- *
- * Abstract Calendar
- *
- **********************************************************************************************************************/
-
-
-  // Controller Definition
-  var AbstractCalendarController = ( function ( BaseController ){
-    //'use strict';
-
-    // TODO: Move this elsewhere.
-    function getLimit ( reference , limit ){
-      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
-      return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
-    }
-
-    return BaseController.extend( {
-      constructor: function ( element ){
-        this.base( element );
-
-        // Create Bindings
-        this.listenTo ( element.getView() , 'selectDate' , this.selectDate );
-      },
-      model2viewModel: function ( state , params ){
-        return {
-          range: this.generateRange( params.date , params.min , params.max , 'day' , 'month' ) ,
-          rowSize: 7
-        };
-      },
-      generateRange: function ( date , min , max , grain , span ){
-        var start  = getLimit( date , 'start' ),
-            end    = getLimit( date , 'end' ),
-            current   = start.clone(),
-            dates = [];
-
-        while ( current.isBefore( end ) ){
-          dates.push( {
-            date: current,
-            label: current.date(),
-            isSelected: current.isSame( date , grain ),
-            isDisabled:
-              ( min && current.isBefore( min , grain ) ) ||
-              ( max && current.isAfter ( max , grain ) ) ||
-              ( span && !current.isSame( date , span ) )
-          } );
-
-          current = current.clone();
-          current.add( 1, grain );
-        }
-
-        return dates;
-      },
-      selectDate: function ( newDate ){
-        this.trigger( 'selectDate' , newDate );
-      }
-
-    } );
-
-  } )( DrpBaseController );
-
-
-  // View Definition
-  var AbstractCalendarView = ( function ( BaseView , $ , _ , moment ) {
-    //'use strict';
-
-    function selfOrDescendant( target , selector ){
-      return $( target ).find( selector ).addBack( selector );
-    }
-
-    function renderBody ( view , model ){
-      var $body = $( view.renderTemplate( view.getTemplate( 'body' ), model ) ),
-          $rows = selfOrDescendant( $body , '.rows' ),
-          rowSize = model.rowSize,
-          items = _.clone( model.range ),
-          row;
-
-      while( !_.isEmpty( items ) ){
-        row = { items: _.first ( items , rowSize ) };
-        $rows.append( renderRow( view , row  ) );
-        items = _.rest( items ,  model.rowSize );
-      }
-
-      return $body;
-    }
-
-    function renderRow ( view , model ){
-      var $row = $( view.renderTemplate( view.getTemplate( 'row' ) , model ) ),
-          $items = selfOrDescendant( $row , '.items' );
-
-      _.forEach( model.items , function ( item ){
-        $items.append( renderItem( view , item ) );
-      } );
-
-      return $row;
-    }
-
-    function renderItem ( view , model ){
-      var $item = $( view.renderTemplate( view.getTemplate( 'item' ) , model ) );
-
-      if ( !model.isDisabled ){
-        $item.click( _.partial( selectDate , view , model.date.clone() ) );
-      }
-
-      return $item;
-    }
-
-    function selectDate ( view , date ){
-      view.trigger( 'selectDate' , date );
-    }
-
-    //--------------------------------//
-
-
-    var View = BaseView.extend( {
-      templates: {
-        row:  '<tr class="calendarRow items"></tr>',
-        body: '<table><thead class="calendarHeader"></thead><tbody class="rows"></tbody></table>',
-        item: '<td><div style=" {{#isDisabled}}color: grey;{{/isDisabled}} {{#isSelected}} background: green;{{/isSelected}}">{{ label }}</div></td>'
-      },
-      renderParent: function ( target , model ){
-        return $( target ).append( renderBody( this , model.toJSON() ) );
-      }
-
-    } );
-
-
-    return View;
-
-  } )( BaseView , $ , _ , moment );
-
-
-
-
-
-  // DRP Element
-  var AbstractCalendarElement = ( function ( BaseElement , AbstractCalendarView , AbstractCalendarController ) {
-    //'use strict';
-
-    return BaseElement.extend( {
-      constructor: function ( opts ){
-        this.base( opts );
-
-        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new AbstractCalendarView( viewOpts ) );
-
-        this.setController( new AbstractCalendarController( this ) );
-      }
-    } );
-
-  } )( BaseElement , AbstractCalendarView , AbstractCalendarController );
-
-
-
-
-
-
-
-/***********************************************************************************************************************
- *
- * Day Calendar
- *
- **********************************************************************************************************************/
-
-
     // Controller Definition
-  var DayCalendarController = ( function ( BaseController ){
+  var CalendarController = ( function ( BaseController ){
     //'use strict';
 
-    function getLimit ( reference , limit ){
-      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
-      return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
+    function generateRange ( date , min , max , start , end , grain , span , itemFormat ){
+      var current   = start.clone(),
+          dates = [];
+
+      while ( current.isBefore( end ) ){
+        dates.push( {
+          date: current,
+          label: current.format( itemFormat ),
+          isSelected: current.isSame( date , grain ),
+          isDisabled:
+            ( min && current.isBefore( min , grain ) ) ||
+            ( max && current.isAfter ( max , grain ) ) ||
+            ( span && !current.isSame( date , span ) )
+        } );
+
+        current = current.clone();
+        current.add( 1, grain );
+      }
+
+      return dates;
     }
+      
 
     return BaseController.extend( {
       constructor: function ( element ){
@@ -606,33 +450,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.listenTo ( element.getView() , 'selectDate' , this.selectDate );
       },
       model2viewModel: function ( state , params ){
+        var start = state.getStart( params.date ),
+            end = state.getEnd( params.date );
         return {
-          range: this.generateRange( params.date , params.min , params.max , 'day' , 'month' ) ,
-          rowSize: 7
+          range: generateRange( params.date , params.min , params.max , start , end , state.grain , state.span, state.itemDisplayFormat ) ,
+          rowSize: state.rowSize
         };
-      },
-      generateRange: function ( date , min , max , grain , span ){
-        var start  = getLimit( date , 'start' ),
-            end    = getLimit( date , 'end' ),
-            current   = start.clone(),
-            dates = [];
-
-        while ( current.isBefore( end ) ){
-          dates.push( {
-            date: current,
-            label: current.date(),
-            isSelected: current.isSame( date , grain ),
-            isDisabled:
-              ( min && current.isBefore( min , grain ) ) ||
-              ( max && current.isAfter ( max , grain ) ) ||
-              ( span && !current.isSame( date , span ) )
-          } );
-
-          current = current.clone();
-          current.add( 1, grain );
-        }
-
-        return dates;
       },
       selectDate: function ( newDate ){
         this.trigger( 'selectDate' , newDate );
@@ -644,7 +467,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // View Definition
-  var DayCalendarView = ( function ( BaseView , $ , _ , moment ) {
+  var CalendarView = ( function ( BaseView , $ , _ , moment ) {
     //'use strict';
 
     function selfOrDescendant( target , selector ){
@@ -714,10 +537,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-
-
   // DRP Element
-  var DayCalendarElement = ( function ( BaseElement , DayCalendarView , DayCalendarController ) {
+  var CalendarElement = ( function ( _ , moment , BaseElement , CalendarView , DayCalendarController ) {
     //'use strict';
 
     return BaseElement.extend( {
@@ -725,15 +546,139 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( opts );
 
         var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new DayCalendarView( viewOpts ) );
+        this.setView( new CalendarView( viewOpts ) );
 
-        this.setController( new DayCalendarController( this ) );
+        this.setController( new CalendarController( this ) );
       }
     } );
 
-  } )( BaseElement , DayCalendarView , DayCalendarController );
+  } )( _ , moment , BaseElement , CalendarView , CalendarController );
 
 
+
+
+
+
+  // DRP Element
+  var DayCalendarElement = ( function ( _ , moment , CalendarElement ) {
+    //'use strict';
+    
+    function getLimit ( limit , reference ){
+      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
+      return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
+    }
+
+    return CalendarElement.extend( {
+      constructor: function ( opts ){
+        var newOpts = _.clone( opts ) || {};
+
+        newOpts.state = {
+          rowSize: 7,
+          getStart: _.partial( getLimit , 'start' ),
+          getEnd: _.partial( getLimit , 'end' ),
+          grain: 'day',
+          span: 'month',
+          itemDisplayFormat: 'D'
+        };
+
+        this.base( newOpts )
+
+      }
+    } );
+
+  } )( _ , moment , CalendarElement );
+
+
+ // DRP Element
+  var MonthCalendarElement = ( function ( _ , moment , CalendarElement ) {
+    //'use strict';
+    
+    function getLimit ( limit , reference ){
+      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
+      return moment( reference ).clone()[ op ]( 'year' );
+    }
+
+    return CalendarElement.extend( {
+      constructor: function ( opts ){
+        var newOpts = _.clone( opts ) || {};
+
+        newOpts.state = {
+          rowSize: 3,
+          getStart: _.partial( getLimit , 'start' ),
+          getEnd: _.partial( getLimit , 'end' ),
+          grain: 'month',
+          span: 'year',
+          itemDisplayFormat: 'MMM'
+        };
+
+        this.base( newOpts )
+
+      }
+    } );
+
+  } )( _ , moment , CalendarElement );
+
+
+   // DRP Element
+  var YearCalendarElement = ( function ( _ , moment , CalendarElement ) {
+    //'use strict';
+    
+    function getStart ( ){
+      return moment().add( -20 , 'year' ).startOf('year');
+    }
+
+    function getEnd ( ){
+      return moment().endOf('year');
+    }
+
+    return CalendarElement.extend( {
+      constructor: function ( opts ){
+        var newOpts = _.clone( opts ) || {};
+
+        newOpts.state = {
+          rowSize: 3,
+          // TODO: review this
+          getStart: getStart ,
+          getEnd: getEnd,
+          grain: 'year',
+          itemDisplayFormat: 'YYYY'
+        };
+
+        this.base( newOpts )
+
+      }
+    } );
+
+  } )( _ , moment , CalendarElement );
+
+
+ // DRP Element
+  var WeekCalendarElement = ( function ( _ , moment , CalendarElement ) {
+    //'use strict';
+    
+    function getLimit ( limit , reference ){
+      var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
+      return moment( reference ).clone()[ op ]( 'year' )[op]('week');
+    }
+
+    return CalendarElement.extend( {
+      constructor: function ( opts ){
+        var newOpts = _.clone( opts ) || {};
+
+        newOpts.state = {
+          rowSize: 2,
+          getStart: _.partial( getLimit , 'start' ),
+          getEnd: _.partial( getLimit , 'end' ),
+          grain: 'week',
+          itemDisplayFormat: 'WW'
+        };
+
+        this.base( newOpts )
+
+      }
+    } );
+
+  } )( _ , moment , CalendarElement );
 
 
 
@@ -843,7 +788,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // View Definition
-  var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement ) {
+  var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement ) {
     //'use strict';
 
     function bindToPage ( target , callback ) {
@@ -885,6 +830,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    </div> ' +
         '    <br> ' +
         '    <div class="startCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="startMonthCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="startYearCalendar"></div> ' +
+        '    <br> ' +
+        '    <div class="startWeekCalendar"></div> ' +
         '    <br> ' +
         '    <div class="endCalendar"></div> ' +
         '    <br> ' +
@@ -930,6 +881,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           } );
         } );
 
+
         var startCalendar = new DayCalendarElement( {
           target: $( target ).find( '.startCalendar' )
         } );
@@ -937,6 +889,45 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           date: model.get( 'start' )
         } );
         myself.listenTo( startCalendar , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
+
+
+
+        var startMonthCalendar = new MonthCalendarElement( {
+          target: $( target ).find( '.startMonthCalendar' )
+        } );
+        startMonthCalendar.update( {
+          date: model.get( 'start' )
+        } );
+        myself.listenTo( startMonthCalendar , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
+
+
+
+        var startYearCalendar = new YearCalendarElement( {
+          target: $( target ).find( '.startYearCalendar' )
+        } );
+        startYearCalendar.update( {
+          date: model.get( 'start' )
+        } );
+        myself.listenTo( startYearCalendar , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
+
+
+
+        var startWeekCalendar = new WeekCalendarElement( {
+          target: $( target ).find( '.startWeekCalendar' )
+        } );
+        startWeekCalendar.update( {
+          date: model.get( 'start' )
+        } );
+        myself.listenTo( startWeekCalendar , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
@@ -982,7 +973,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     return View;
 
-  } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement );
+  } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement );
 
 
 
