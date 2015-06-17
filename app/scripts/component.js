@@ -159,10 +159,9 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var comp = this.getComponent(),
             state = comp.getState().toJSON(),
             params = comp.getParams().toJSON(),
-            vm = this.model2viewModel( state , params ),
-            mountNode = comp.getMountNode();
+            vm = this.model2viewModel( state , params );
         // TODO: too intricated. refactor cycle???
-        return comp.getView().render( vm , mountNode );
+        return comp.getView().render( vm  );
       }
 
 
@@ -196,24 +195,30 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         return ( _.isString( key ) && this.templates && this.templates[ key ] ) || this.template;
       },
 
-      render: function ( model , targetNode ) {
-        var cachedContents = this.getElement().contents().detach();
+      setCachedContents: function ( contents ){
+        this.cachedContents = contents;       
+      },
+      getCachedContents: function (){
+        return this.cachedContents;
+      },
 
+      render: function ( model ) {
         if ( _.isObject( model ) ) { 
           this.getModel().set( model );
         }
-        if ( targetNode ) {
-          this.setElement( $(targetNode) );
+        if ( this.getCachedContents() ){
+          this.getCachedContents().detach();
         }
-
         // Using .hasChanged instead of binding a callback to synchronize.
         // TODO: Evaluate if async is better.
         if ( this.getModel().hasChanged() ){
           this.renderParent( this.getElement() , this.getModel() );
           this.renderChildren( this.getElement() , this.getModel() );
         } else {
-          this.getElement().empty().append( cachedContents );
+          this.getElement().empty().append( this.getCachedContents() );
         }
+
+        this.setCachedContents( this.getElement().contents() );
 
         return this.getElement();
       },
@@ -262,7 +267,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
       render: function (){
         // TODO: promisses???
-        this.getController().renderView( this.getMountNode() );
+        this.getController().renderView( );
         this.trigger( 'render' , this );
         return this;
       },
@@ -275,7 +280,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
       // private definitions
       setMountNode: function ( node ){
-        this.mountNode = $(node);
+        if ( node ){
+          this.mountNode = $(node);
+          this.getView().setElement( this.mountNode );
+        }
       },
       getMountNode: function ( ){
         return this.mountNode;
