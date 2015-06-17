@@ -132,21 +132,50 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     return BaseBone.extend( {
-      constructor: function ( component ){
+      constructor: function ( models , views ){
+        this.models = {};
+        this.views = {};
 
-        this.setComponent( component );
+        _.forEach( models , _.bind( this.setModel, this ) );
+        _.forEach( views , _.bind( this.setView, this ));
+
+      },
+
+      setModel: function ( model , id ){
+        this.models[id] = model;
+      },
+      getModel: function ( id ){
+        return this.models[id];
+      },
+
+      setView: function ( view  , id ){
+        this.views[id] = view;
+      },
+      getView: function ( id ){
+        return this.views[id];
+      }
+
+    } );
+
+  } )( _ , BaseBone );
+
+
+  var ComponentController = ( function ( _ , BaseController ){
+    //'use strict';
+
+    return BaseController.extend( {
+      constructor: function ( state , params , view ){
+        this.base(
+          { state: state , params: params },
+          { main: view }
+        );
 
         // Create Bindings
-        this.listenTo( component.getState()  , 'change' , this.renderView  );
-        this.listenTo( component.getParams() , 'change' , this.renderView  );
+        this.listenTo( state  , 'change' , this.renderView  );
+        this.listenTo( params , 'change' , this.renderView  );
 
       },
-      setComponent: function ( component ){
-        this.component = component;
-      },
-      getComponent: function ( ){
-        return this.component;
-      },
+
       model2viewModel: function ( state , params ){
         // Default Implementation of model -> viewModel transformation. Override as needed.
         return {
@@ -155,20 +184,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         };
       },
 
-      renderView: function (  ){
-        var comp = this.getComponent(),
-            state = comp.getState().toJSON(),
-            params = comp.getParams().toJSON(),
+      renderView: function ( id ){
+        var state = this.getModel('state').toJSON(),
+            params = this.getModel('params').toJSON(),
             vm = this.model2viewModel( state , params );
         // TODO: too intricated. refactor cycle???
-        return comp.getView().render( vm  );
+        return this.getView('main').render( vm  );
       }
 
 
     } );
 
-  } )( _ , BaseBone );
-
+  } )( _ , BaseController );
 
 
   // Base View
@@ -332,10 +359,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  *
  **********************************************************************************************************************/
 
-  var DrpBaseController = ( function ( _ , BaseController ){
+  var DrpBaseController = ( function ( _ , ComponentController ){
     // 'use strict';
 
-    return BaseController.extend( {
+    return ComponentController.extend( {
       listenTo: function ( observed , eventName , callback ){
         var modifiedCallback = callback;
 
@@ -351,7 +378,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       }
     } );
 
-  } )( _ , BaseController );
+  } )( _ , ComponentController );
 
 
 
@@ -366,23 +393,23 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
   // Controller Definition
-  var PredefinedController = ( function ( BaseController ){
+  var PredefinedController = ( function ( DrpBaseController ){
     //'use strict';
 
-    return BaseController.extend( {
-      constructor: function ( component ){
-        this.base( component );
+    return DrpBaseController.extend( {
+      constructor: function ( state , params , view ){
+        this.base(  state , params , view );
 
         // Create Bindings
-        this.listenTo ( component.getView() , 'click' , this.activate );
+        this.listenTo ( view , 'click' , this.activate );
       },
       model2viewModel: function ( state , params ){
         return {
-          label: state.label
+          label: params.label
         };
       },
       activate: function (){
-        this.trigger( 'activate' , this.getComponent().getParams().get( 'getRange' )() );
+        this.trigger( 'activate' , this.getModel('params').get( 'getRange' )() );
       }
     } );
 
@@ -406,7 +433,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       template:
         '<div>' +
         '  <span>{{ label }}</span>' +
-        '</div>'
+        '</div>',
+      render: function (){
+        this.base.apply( this, arguments );
+      }
 
 
 
@@ -425,7 +455,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new PredefinedView( _opts.viewOpts ) );
-        this.setController( new PredefinedController( this ) );
+        this.setController( new PredefinedController( this.getState() , this.getParams() , this.getView() ) );
       }
 
     } );
@@ -449,7 +479,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
     // Controller Definition
-  var CalendarController = ( function ( BaseController ){
+  var CalendarController = ( function ( DrpBaseController ){
     //'use strict';
 
     function generateRange ( date , min , max , start , end , grain , span , itemFormat ){
@@ -475,12 +505,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     }
       
 
-    return BaseController.extend( {
-      constructor: function ( component ){
-        this.base( component );
+    return DrpBaseController.extend( {
+      constructor: function ( state , params , view ){
+        this.base( state , params , view );
 
         // Create Bindings
-        this.listenTo ( component.getView() , 'selectDate' , this.selectDate );
+        this.listenTo ( view , 'selectDate' , this.selectDate );
       },
       model2viewModel: function ( state , params ){
         var start = state.getStart( params.date ),
@@ -581,7 +611,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new CalendarView( _opts.viewOpts ) );
-        this.setController( new CalendarController( this ) );
+        this.setController( new CalendarController( this.getState() , this.getParams() , this.getView() ) );
       }
     } );
 
@@ -781,16 +811,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   })( BaseView , DayCalendarComponent , MonthCalendarComponent , WeekCalendarComponent , YearCalendarComponent );
 
 
-  var CalendarDialogController = ( function ( BaseController ){
+  var CalendarDialogController = ( function ( DrpBaseController ){
     // 'use strict';
     
-    return BaseController.extend({
-      constructor: function ( component ){
-        this.base(component);
+    return DrpBaseController.extend({
+      constructor: function ( state , params , view ){
+        this.base( state , params , view );
 
-        this.listenTo( component.getView() , 'selectDate' , this.selectDate );
+        this.listenTo( view , 'selectDate' , this.selectDate );
 
-        this.listenTo( component.getView() , 'selectMode' , component.getState().getSetter( 'mode' ) );
+        this.listenTo( view , 'selectMode' , state.getSetter( 'mode' ) );
       },
       model2viewModel: function ( state ,  params ){
         return {
@@ -803,7 +833,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       }
     });
 
-  })( BaseController );
+  })( DrpBaseController );
 
 
   var CalendarDialogComponent = ( function ( BaseComponent , CalendarDialogView , CalendarDialogController ) {
@@ -815,7 +845,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new CalendarDialogView( _opts.viewOpts ) );
-        this.setController( new CalendarDialogController( this ) );
+        this.setController( new CalendarDialogController( this.getState() , this.getParams() , this.getView() ) );
 
       }
     } );
@@ -832,7 +862,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  var DrpController = ( function ( _ , BaseController ){
+  var DrpController = ( function ( _ , DrpBaseController ){
     //'use strict';
 
     function partialRight( fn ){
@@ -841,71 +871,73 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     //--------------------------------//
 
-    return BaseController.extend( {
-      constructor: function ( component ){
-        this.base( component );
+    return DrpBaseController.extend( {
+      constructor: function ( state , params , view ){
+        this.base( state , params , view );
 
         // Create Bindings
         // Bind day start and date end params to internal temp state
-        this.listenTo( component.getParams() , 'change:start', component.getState().getSetter( 'start' ) );
-        this.listenTo( component.getParams() , 'change:end', component.getState().getSetter( 'end' ) );
+        this.listenTo( params , 'change:start', state.getSetter( 'start' ) );
+        this.listenTo( params , 'change:end', state.getSetter( 'end' ) );
 
         // TODO: temporarily copying predefined to internal state
-        this.listenTo( component.getParams() , 'change:predefined' , component.getState().getSetter( 'predefined' ) );
+        this.listenTo( params , 'change:predefined' , state.getSetter( 'predefined' ) );
 
-        this.listenTo( component.getView() , 'clickOutside'   , this.toggleDropdown );
-        this.listenTo( component.getView() , 'clickOnDisplay' , this.toggleDropdown );
+        this.listenTo( view , 'clickOutside'   , this.toggleDropdown );
+        this.listenTo( view , 'clickOnDisplay' , this.toggleDropdown );
 
-        this.listenTo( component.getView() , 'changeRange' , this.updateRange );
+        this.listenTo( view , 'changeRange' , this.updateRange );
 
         // TODO: Make this more generic to account for all the selector paremeters
-        this.listenTo( component.getView() , 'cancel' , this.cancelAndClose );
+        this.listenTo( view , 'cancel' , this.cancelAndClose );
 
-        this.listenTo( component.getView() , 'apply' , this.applyAndClose );
+        this.listenTo( view , 'apply' , this.applyAndClose );
 
         // TODO: Clean up predefined
-        this.listenTo( component.getView() , 'select' , function( selectedItem ){
-          var items = _.clone( component.getState().get( 'predefined' ) );
+        this.listenTo( view , 'select' , function( selectedItem ){
+          var items = _.clone( state.get( 'predefined' ) );
           _.forEach( items, function ( item ){
             item.isSelected = ( _.isEqual( item , selectedItem ) );
           } );
-          component.getState().set( 'predefined', items );
+          state.set( 'predefined', items );
         } );
 
       },
 
       updateRange: function ( newRange ){
-        this.getComponent().getState().set( newRange );
+        this.getModel('state').set( newRange );
       },
 
       toggleDropdown: function ( value ){
-        var comp = this.getComponent(),
-            newValue = _.isUndefined( value ) ? !comp.getState().get( 'isDropdownOpen' ) : value;
+        var state = this.getModel('state'),
+            newValue = _.isUndefined( value ) ? !state.get( 'isDropdownOpen' ) : value;
         if ( !newValue ){
           this.cancelSelection();
         }
-        comp.getState().set( 'isDropdownOpen' , newValue );
+        state.set( 'isDropdownOpen' , newValue );
       },
 
       cancelSelection: function (){
-        var comp = this.getComponent();
-        comp.getState().set( 'start' , comp.getParams().get( 'start' ) );
-        comp.getState().set( 'end' , comp.getParams().get( 'end' ) );
+        var state = this.getModel('state'),
+            params = this.getModel('params');
+        state.set( 'start' , params.get( 'start' ) );
+        state.set( 'end' , params.get( 'end' ) );
       },
       applySelection: function (){
+        var state = this.getModel('state');
         this.trigger( 'change' , {
-          start: this.getComponent().getState().get( 'start' ),
-          end: this.getComponent().getState().get( 'end' )
+          start: state.get( 'start' ),
+          end: state.get( 'end' )
         } );
       },
 
       cancelAndClose: function (){
         this.cancelSelection();
-        this.getComponent().getState().set( 'isDropdownOpen' , false );
+        this.getModel('state').set( 'isDropdownOpen' , false );
       },
       applyAndClose: function (){
         this.applySelection();
-        this.getComponent().getState().set( 'isDropdownOpen' , false );
+        this.getModel('state').set( 'isDropdownOpen' , false );
       },
 
       model2viewModel: function ( state , params ){
@@ -1144,7 +1176,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new DrpView( _opts.viewOpts ) );
-        this.setController( new DrpController( this ) );
+        this.setController( new DrpController( this.getState() , this.getParams() , this.getView() ) );
 
       }
     } );
