@@ -397,13 +397,18 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       events: {
         'click': 'click'
       },
+
+      // Emmitted Events
+      click: function ( ) {
+        this.trigger( 'click' );
+      },
+
       template:
         '<div>' +
         '  <span>{{ label }}</span>' +
-        '</div>',
-      click: function ( ) {
-        this.trigger( 'click' );
-      }
+        '</div>'
+
+
 
     } );
 
@@ -539,6 +544,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return $item;
     }
 
+    // Emmitted Events
     function selectDate ( view , date ){
       view.trigger( 'selectDate' , date );
     }
@@ -735,6 +741,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         'click .monthMode': 'selectMonth',
         'click .yearMode': 'selectYear'
       },
+
+      // Emmitted Events
       selectDay: function ( mode ){ this.selectMode('day') },
       selectWeek: function ( mode ){ this.selectMode('week') },
       selectMonth: function ( mode ){ this.selectMode('month') },
@@ -742,6 +750,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       selectMode: function ( mode ){
         this.trigger('selectMode', mode );
       },
+      
       template: 
         '<div>' +
         '  <div class="modesContainer">' +
@@ -925,7 +934,9 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     function bindToPage ( target , callback ) {
-      return $( document ).on( 'click', function ( ev ) {
+      return $( document )
+        .off('click.dateRangePickerEvents')
+        .on( 'click.dateRangePickerEvents', function ( ev ) {
           // The second part of this test accounts for when the original target is already detached
           // from the DOM, possibly because another event triggered a rerender.
           if ( ! $.contains( target , ev.target ) && $.contains( document.body , ev.target ) ){
@@ -933,7 +944,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           }
         } );
     }
-
 
     //--------------------------------//
 
@@ -944,6 +954,21 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         'click .applyButton': 'apply',
         'click .cancelButton': 'cancel'
       },
+
+      // Emmitted Events
+      clickOnDisplay: function ( predicate ) {
+        this.trigger( 'clickOnDisplay' );
+      },
+      apply: function (){
+        this.trigger( 'apply' );
+      },
+      cancel: function (){
+        this.trigger( 'cancel' );
+      },
+      clickOutside: function (){
+        this.trigger( 'clickOutside' );
+      },
+
       template:
         '<div class="drpContainer">' +
         '  <div class="rangeDisplay">' +
@@ -982,18 +1007,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    <br> ' +
         '  </div> ' +
         '</div>',
-      clickOnDisplay: function ( predicate ) {
-        this.trigger( 'clickOnDisplay' );
-      },
-      apply: function (){
-        this.trigger( 'apply' );
-      },
-      cancel: function (){
-        this.trigger( 'cancel' );
-      },
-      clickOutside: function (){
-        this.trigger( 'clickOutside' );
-      },
+
       constructor: function () {
         this.base.apply( this, arguments );
         this.children = {};
