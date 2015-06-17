@@ -996,13 +996,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
       constructor: function () {
         this.base.apply( this, arguments );
-
-        var clickOutside = _.bind( this.clickOutside , this, false ) ;
-        // TODO: verify if there are no ghost events.
-        // bindToPage( this.el , clickOutside );
-
         this.children = {};
-
+      },
+      setElement: function (){
+        this.base.apply( this, arguments );
+        bindToPage( this.getElement()[0] , _.bind( this.clickOutside, this, false ) );
       },
       renderChildren: function ( target , model ) {
         var myself = this;
