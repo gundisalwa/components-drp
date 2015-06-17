@@ -962,7 +962,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '      {{/predefined}}' +
         '    </div> ' +
         '    <br> ' +
-        '    <div class="startCalendar"></div> ' +
+/*        '    <div class="startCalendar"></div> ' +
         '    <br> ' +
         '    <div class="startMonthCalendar"></div> ' +
         '    <br> ' +
@@ -975,8 +975,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    <div class="speedyCalendar"></div> ' +
         '    <br> ' +
         '    <div class="slowPokeCalendar"></div> ' +
-        '    <br> ' +
-        '    <div class="startDialog"></div> ' +
+*/      '    <div class="row"> ' +
+        '      <div class="startCalendarDialog col-xs-6"></div> ' +
+        '       <div class="endCalendarDialog col-xs-6"></div> ' +
+        '    </div>' +
         '    <br> ' +
         '  </div> ' +
         '</div>',
@@ -1021,7 +1023,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         } );
       
 
-        ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
+      /*  ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
           .mount( $( target ).find( '.startCalendar' ) )
           .update( { date: model.get( 'start' ) } );
         myself.listenTo( this.children['startCalendar'] , 'selectDate' , function ( newStart ) {
@@ -1054,14 +1056,22 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         myself.listenTo( this.children['startWeekCalendar'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
-        } );
+        } );*/
 
 
         ( this.children['startCalendarDialog'] = this.children['startCalendarDialog'] || new CalendarDialogComponent() )
-          .mount( $( target ).find( '.startDialog' ) )
+          .mount( $( target ).find( '.startCalendarDialog' ) )
           .update( { date: model.get( 'start' ) } );
         myself.listenTo( this.children['startCalendarDialog'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
+
+        ( this.children['endCalendarDialog'] = this.children['endCalendarDialog'] || new CalendarDialogComponent() )
+          .mount( $( target ).find( '.endCalendarDialog' ) )
+          .update( { date: model.get( 'end' ) } );
+        myself.listenTo( this.children['endCalendarDialog'] , 'selectDate' , function ( newEnd ) {
+          myself.trigger( 'changeRange' , { end: newEnd } );
           myself.trigger( 'select' , null );
         } );
 
@@ -1170,7 +1180,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-
+/*
   var calendar = new DayCalendarComponent();
 
   calendar.mount('#somethingElse');
@@ -1178,6 +1188,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   calendar.listenTo( calendar , 'selectDate' , function ( newDate ){
     calendar.update( { date: newDate } );
   } );
+*/
 
 
   var exports = {
