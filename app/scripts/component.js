@@ -132,20 +132,20 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     return BaseBone.extend( {
-      constructor: function ( element ){
+      constructor: function ( component ){
 
-        this.setElement( element );
+        this.setComponent( component );
 
         // Create Bindings
-        this.listenTo( element.getState()  , 'change' , this.renderView  );
-        this.listenTo( element.getParams() , 'change' , this.renderView  );
+        this.listenTo( component.getState()  , 'change' , this.renderView  );
+        this.listenTo( component.getParams() , 'change' , this.renderView  );
 
       },
-      setElement: function ( element ){
-        this.element = element;
+      setComponent: function ( component ){
+        this.component = component;
       },
-      getElement: function ( ){
-        return this.element;
+      getComponent: function ( ){
+        return this.component;
       },
       model2viewModel: function ( state , params ){
         // Default Implementation of model -> viewModel transformation. Override as needed.
@@ -155,11 +155,14 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         };
       },
 
-      renderView: function ( ){
-        var state = this.getElement().getState().toJSON(),
-            params = this.getElement().getParams().toJSON(),
-            vm = this.model2viewModel( state , params );
-        return this.getElement().getView().render( vm );
+      renderView: function (  ){
+        var comp = this.getComponent(),
+            state = comp.getState().toJSON(),
+            params = comp.getParams().toJSON(),
+            vm = this.model2viewModel( state , params ),
+            mountNode = comp.getMountNode();
+        // TODO: too intricated. refactor cycle???
+        return comp.getView().render( vm , mountNode );
       }
 
 
@@ -176,11 +179,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     return BaseBone.basebonify( Backbone.View ,{
       constructor: function ( config ) {
         this.base.apply( this, arguments );
-
-        if ( config && config.target ){
-          this.setElement( $( config.target ) );
-        }
-
         this.setModel ( new BaseModel() );
       },
 
@@ -198,16 +196,23 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         return ( _.isString( key ) && this.templates && this.templates[ key ] ) || this.template;
       },
 
-      render: function ( model ) {
+      render: function ( model , targetNode ) {
+        var cachedContents = this.getElement().contents().detach();
 
-        this.getModel().set( model );
+        if ( _.isObject( model ) ) { 
+          this.getModel().set( model );
+        }
+        if ( targetNode ) {
+          this.setElement( $(targetNode) );
+        }
 
         // Using .hasChanged instead of binding a callback to synchronize.
         // TODO: Evaluate if async is better.
         if ( this.getModel().hasChanged() ){
-          this.getElement().empty();
           this.renderParent( this.getElement() , this.getModel() );
           this.renderChildren( this.getElement() , this.getModel() );
+        } else {
+          this.getElement().empty().append( cachedContents );
         }
 
         return this.getElement();
@@ -216,7 +221,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       // TODO: Should we have to pass the target?
       // Or should it be taken from this.$el, for coherence???
       renderParent: function ( target , model ) {
-        return $( target ).html( this.renderTemplate( this.getTemplate() , model.toJSON() ) );
+        return $(target).html( this.renderTemplate( this.getTemplate() , model.toJSON() ) );
       },
       renderTemplate: function ( template , data ){
         return Mustache.render( template ,  data );
@@ -229,20 +234,22 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  // Base Element
-  var BaseElement = ( function ( _ , BaseBone , BaseView , BaseModel  ) {
+  // Base Component
+  var BaseComponent = ( function ( _ , BaseBone , BaseView , BaseModel  ) {
     //'use strict';
 
     return BaseBone.extend( {
 
       constructor: function ( opts ) {
-        this.base( opts );
+        var _opts = opts || {};
+
+        this.base( _opts );
 
         // Set Params model
-        this.setParams( new BaseModel( opts.params ) );
+        this.setParams( new BaseModel( _opts.params ) );
 
         // Set State model
-        this.setState( new BaseModel( opts.state ) );
+        this.setState( new BaseModel( _opts.state ) );
 
       },
 
@@ -251,16 +258,29 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         // TODO: promisses???
         this.getParams().set( newInput );
         this.trigger( 'updated' , newInput );
-        return this.getView().getElement();
+        return this;
       },
       render: function (){
         // TODO: promisses???
-        this.getController().renderView( );
-        this.trigger( 'render' , this.getView().getElement() );
-        return this.getView().getElement();
+        this.getController().renderView( this.getMountNode() );
+        this.trigger( 'render' , this );
+        return this;
+      },
+      mount: function ( node ){
+        this.setMountNode( node );
+        this.render();
+        this.trigger( 'mount' , this );
+        return this;
       },
 
       // private definitions
+      setMountNode: function ( node ){
+        this.mountNode = $(node);
+      },
+      getMountNode: function ( ){
+        return this.mountNode;
+      },
+
       setView: function( view ){
         this.view = view;
       },
@@ -300,7 +320,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 /***********************************************************************************************************************
  *
- * Predefined Element
+ * Predefined Component
  *
  **********************************************************************************************************************/
 
@@ -333,7 +353,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 /***********************************************************************************************************************
  *
- * Predefined Element
+ * Predefined Component
  *
  **********************************************************************************************************************/
 
@@ -342,11 +362,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     return BaseController.extend( {
-      constructor: function ( element ){
-        this.base( element );
+      constructor: function ( component ){
+        this.base( component );
 
         // Create Bindings
-        this.listenTo ( element.getView() , 'click' , this.activate );
+        this.listenTo ( component.getView() , 'click' , this.activate );
       },
       model2viewModel: function ( state , params ){
         return {
@@ -354,7 +374,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         };
       },
       activate: function (){
-        this.trigger( 'activate' , this.getElement().getParams().get( 'getRange' )() );
+        this.trigger( 'activate' , this.getComponent().getParams().get( 'getRange' )() );
       }
     } );
 
@@ -381,23 +401,23 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   } )( BaseView );
 
-  // Element Definition
-  var PredefinedElement = ( function ( BaseElement , PredefinedView , PredefinedController ) {
+  // Component Definition
+  var PredefinedComponent = ( function ( BaseComponent , PredefinedView , PredefinedController ) {
     //'use strict';
 
-    return BaseElement.extend( {
+    return BaseComponent.extend( {
       constructor: function ( opts ){
-        this.base( opts );
+        var _opts = opts || {};
 
-        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new PredefinedView( viewOpts ) );
+        this.base( _opts );
 
+        this.setView( new PredefinedView( _opts.viewOpts ) );
         this.setController( new PredefinedController( this ) );
       }
 
     } );
 
-  } )( BaseElement , PredefinedView , PredefinedController );
+  } )( BaseComponent , PredefinedView , PredefinedController );
 
 
 
@@ -443,11 +463,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       
 
     return BaseController.extend( {
-      constructor: function ( element ){
-        this.base( element );
+      constructor: function ( component ){
+        this.base( component );
 
         // Create Bindings
-        this.listenTo ( element.getView() , 'selectDate' , this.selectDate );
+        this.listenTo ( component.getView() , 'selectDate' , this.selectDate );
       },
       model2viewModel: function ( state , params ){
         var start = state.getStart( params.date ),
@@ -525,7 +545,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         item: '<td><div style=" {{#isDisabled}}color: grey;{{/isDisabled}} {{#isSelected}} background: green;{{/isSelected}}">{{ label }}</div></td>'
       },
       renderParent: function ( target , model ){
-        return $( target ).append( renderBody( this , model.toJSON() ) );
+        return $(target).append( renderBody( this , model.toJSON() ) );
       }
 
     } );
@@ -537,30 +557,29 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  // DRP Element
-  var CalendarElement = ( function ( _ , moment , BaseElement , CalendarView , DayCalendarController ) {
+  // DRP Component
+  var CalendarComponent = ( function ( _ , moment , BaseComponent , CalendarView , DayCalendarController ) {
     //'use strict';
 
-    return BaseElement.extend( {
+    return BaseComponent.extend( {
       constructor: function ( opts ){
-        this.base( opts );
+        var _opts = opts || {};
+        this.base( _opts );
 
-        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new CalendarView( viewOpts ) );
-
+        this.setView( new CalendarView( _opts.viewOpts ) );
         this.setController( new CalendarController( this ) );
       }
     } );
 
-  } )( _ , moment , BaseElement , CalendarView , CalendarController );
+  } )( _ , moment , BaseComponent , CalendarView , CalendarController );
 
 
 
 
 
 
-  // DRP Element
-  var DayCalendarElement = ( function ( _ , moment , CalendarElement ) {
+  // DRP Component
+  var DayCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
     
     function getLimit ( limit , reference ){
@@ -568,11 +587,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
     }
 
-    return CalendarElement.extend( {
+    return CalendarComponent.extend( {
       constructor: function ( opts ){
-        var newOpts = _.clone( opts ) || {};
+        var _opts = _.clone( opts ) || {};
 
-        newOpts.state = {
+        _opts.state = {
           rowSize: 7,
           getStart: _.partial( getLimit , 'start' ),
           getEnd: _.partial( getLimit , 'end' ),
@@ -581,16 +600,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           itemDisplayFormat: 'D'
         };
 
-        this.base( newOpts )
+        this.base( _opts )
 
       }
     } );
 
-  } )( _ , moment , CalendarElement );
+  } )( _ , moment , CalendarComponent );
 
 
- // DRP Element
-  var MonthCalendarElement = ( function ( _ , moment , CalendarElement ) {
+ // DRP Component
+  var MonthCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
     
     function getLimit ( limit , reference ){
@@ -598,11 +617,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return moment( reference ).clone()[ op ]( 'year' );
     }
 
-    return CalendarElement.extend( {
+    return CalendarComponent.extend( {
       constructor: function ( opts ){
-        var newOpts = _.clone( opts ) || {};
+        var _opts = _.clone( opts ) || {};
 
-        newOpts.state = {
+        _opts.state = {
           rowSize: 3,
           getStart: _.partial( getLimit , 'start' ),
           getEnd: _.partial( getLimit , 'end' ),
@@ -611,16 +630,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           itemDisplayFormat: 'MMM'
         };
 
-        this.base( newOpts )
+        this.base( _opts )
 
       }
     } );
 
-  } )( _ , moment , CalendarElement );
+  } )( _ , moment , CalendarComponent );
 
 
-   // DRP Element
-  var YearCalendarElement = ( function ( _ , moment , CalendarElement ) {
+   // DRP Component
+  var YearCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
     
     function getStart ( ){
@@ -631,11 +650,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return moment().endOf('year');
     }
 
-    return CalendarElement.extend( {
+    return CalendarComponent.extend( {
       constructor: function ( opts ){
-        var newOpts = _.clone( opts ) || {};
+        var _opts = _.clone( opts ) || {};
 
-        newOpts.state = {
+        _opts.state = {
           rowSize: 3,
           // TODO: review this
           getStart: getStart ,
@@ -644,16 +663,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           itemDisplayFormat: 'YYYY'
         };
 
-        this.base( newOpts )
+        this.base( _opts )
 
       }
     } );
 
-  } )( _ , moment , CalendarElement );
+  } )( _ , moment , CalendarComponent );
 
 
- // DRP Element
-  var WeekCalendarElement = ( function ( _ , moment , CalendarElement ) {
+ // DRP Component
+  var WeekCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
     
     function getLimit ( limit , reference ){
@@ -661,11 +680,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return moment( reference ).clone()[ op ]( 'year' )[op]('week');
     }
 
-    return CalendarElement.extend( {
+    return CalendarComponent.extend( {
       constructor: function ( opts ){
-        var newOpts = _.clone( opts ) || {};
+        var _opts = _.clone( opts ) || {};
 
-        newOpts.state = {
+        _opts.state = {
           rowSize: 2,
           getStart: _.partial( getLimit , 'start' ),
           getEnd: _.partial( getLimit , 'end' ),
@@ -673,12 +692,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           itemDisplayFormat: 'WW'
         };
 
-        this.base( newOpts )
+        this.base( _opts )
 
       }
     } );
 
-  } )( _ , moment , CalendarElement );
+  } )( _ , moment , CalendarComponent );
 
 
 /***********************************************************************************************************************
@@ -688,15 +707,15 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
 
-  var CalendarDialogView = ( function ( BaseView , DayCalendarElement , MonthCalendarElement , WeekCalendarElement , YearCalendarElement ){
+  var CalendarDialogView = ( function ( BaseView , DayCalendarComponent , MonthCalendarComponent , WeekCalendarComponent , YearCalendarComponent ){
     // 'use strict';
     
-    function getCalendarElement ( mode ){
+    function getCalendarComponent ( mode ){
       var map = {
-        'day' : DayCalendarElement,
-        'week': WeekCalendarElement,
-        'month': MonthCalendarElement,
-        'year': YearCalendarElement
+        'day' : DayCalendarComponent,
+        'week': WeekCalendarComponent,
+        'month': MonthCalendarComponent,
+        'year': YearCalendarComponent
       };
       return ( mode && map[mode] ) || map['day'];
     }
@@ -729,32 +748,32 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       renderChildren: function ( target , model ){
         var myself = this;
 
-        var CurrentCalendar = getCalendarElement( model.get('mode') ),
-            calendar = new CurrentCalendar( {
-              target: $(target).find('.calendarContainer') 
-            });
-        calendar.update({
-          date: model.get('date')
-        });
+        var CurrentCalendar = getCalendarComponent( model.get('mode') ),
+            calendar = new CurrentCalendar();
+        
+        calendar
+          .mount( $(target).find('.calendarContainer') )
+          .update({ date: model.get('date') });
+        
         myself.listenTo( calendar , 'selectDate' , function ( newDate ) {
           myself.trigger( 'selectDate' , newDate );
         });
       }
     });
 
-  })( BaseView , DayCalendarElement , MonthCalendarElement , WeekCalendarElement , YearCalendarElement );
+  })( BaseView , DayCalendarComponent , MonthCalendarComponent , WeekCalendarComponent , YearCalendarComponent );
 
 
   var CalendarDialogController = ( function ( BaseController ){
     // 'use strict';
     
     return BaseController.extend({
-      constructor: function ( element ){
-        this.base(element);
+      constructor: function ( component ){
+        this.base(component);
 
-        this.listenTo( element.getView() , 'selectDate' , this.selectDate );
+        this.listenTo( component.getView() , 'selectDate' , this.selectDate );
 
-        this.listenTo( element.getView() , 'selectMode' , element.getState().getSetter( 'mode' ) );
+        this.listenTo( component.getView() , 'selectMode' , component.getState().getSetter( 'mode' ) );
       },
       model2viewModel: function ( state ,  params ){
         return {
@@ -770,22 +789,21 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   })( BaseController );
 
 
-  var CalendarDialogElement = ( function ( BaseElement , CalendarDialogView , CalendarDialogController ) {
+  var CalendarDialogComponent = ( function ( BaseComponent , CalendarDialogView , CalendarDialogController ) {
     //'use strict';
 
-    return BaseElement.extend( {
+    return BaseComponent.extend( {
       constructor: function ( opts ){
-        this.base( opts );
+        var _opts = opts || {};
+        this.base( _opts );
 
-        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new CalendarDialogView( viewOpts ) );
-
+        this.setView( new CalendarDialogView( _opts.viewOpts ) );
         this.setController( new CalendarDialogController( this ) );
 
       }
     } );
 
-  } )( BaseElement, CalendarDialogView , CalendarDialogController );
+  } )( BaseComponent, CalendarDialogView , CalendarDialogController );
 
 
 
@@ -807,70 +825,70 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //--------------------------------//
 
     return BaseController.extend( {
-      constructor: function ( element ){
-        this.base( element );
+      constructor: function ( component ){
+        this.base( component );
 
         // Create Bindings
         // Bind day start and date end params to internal temp state
-        this.listenTo( element.getParams() , 'change:start', element.getState().getSetter( 'start' ) );
-        this.listenTo( element.getParams() , 'change:end', element.getState().getSetter( 'end' ) );
+        this.listenTo( component.getParams() , 'change:start', component.getState().getSetter( 'start' ) );
+        this.listenTo( component.getParams() , 'change:end', component.getState().getSetter( 'end' ) );
 
         // TODO: temporarily copying predefined to internal state
-        this.listenTo( element.getParams() , 'change:predefined' , element.getState().getSetter( 'predefined' ) );
+        this.listenTo( component.getParams() , 'change:predefined' , component.getState().getSetter( 'predefined' ) );
 
-        this.listenTo( element.getView() , 'clickOutside'   , this.toggleDropdown );
-        this.listenTo( element.getView() , 'clickOnDisplay' , this.toggleDropdown );
+        this.listenTo( component.getView() , 'clickOutside'   , this.toggleDropdown );
+        this.listenTo( component.getView() , 'clickOnDisplay' , this.toggleDropdown );
 
-        this.listenTo( element.getView() , 'changeRange' , this.updateRange );
+        this.listenTo( component.getView() , 'changeRange' , this.updateRange );
 
         // TODO: Make this more generic to account for all the selector paremeters
-        this.listenTo( element.getView() , 'cancel' , this.cancelAndClose );
+        this.listenTo( component.getView() , 'cancel' , this.cancelAndClose );
 
-        this.listenTo( element.getView() , 'apply' , this.applyAndClose );
+        this.listenTo( component.getView() , 'apply' , this.applyAndClose );
 
         // TODO: Clean up predefined
-        this.listenTo( element.getView() , 'select' , function( selectedItem ){
-          var items = _.clone( element.getState().get( 'predefined' ) );
+        this.listenTo( component.getView() , 'select' , function( selectedItem ){
+          var items = _.clone( component.getState().get( 'predefined' ) );
           _.forEach( items, function ( item ){
             item.isSelected = ( _.isEqual( item , selectedItem ) );
           } );
-          element.getState().set( 'predefined', items );
+          component.getState().set( 'predefined', items );
         } );
 
       },
 
       updateRange: function ( newRange ){
-        this.getElement().getState().set( newRange );
+        this.getComponent().getState().set( newRange );
       },
 
       toggleDropdown: function ( value ){
-        var el = this.getElement(),
-            newValue = _.isUndefined( value ) ? !el.getState().get( 'isDropdownOpen' ) : value;
+        var comp = this.getComponent(),
+            newValue = _.isUndefined( value ) ? !comp.getState().get( 'isDropdownOpen' ) : value;
         if ( !newValue ){
           this.cancelSelection();
         }
-        el.getState().set( 'isDropdownOpen' , newValue );
+        comp.getState().set( 'isDropdownOpen' , newValue );
       },
 
       cancelSelection: function (){
-        var el = this.getElement();
-        el.getState().set( 'start' , el.getParams().get( 'start' ) );
-        el.getState().set( 'end' , el.getParams().get( 'end' ) );
+        var comp = this.getComponent();
+        comp.getState().set( 'start' , comp.getParams().get( 'start' ) );
+        comp.getState().set( 'end' , comp.getParams().get( 'end' ) );
       },
       applySelection: function (){
         this.trigger( 'change' , {
-          start: this.getElement().getState().get( 'start' ),
-          end: this.getElement().getState().get( 'end' )
+          start: this.getComponent().getState().get( 'start' ),
+          end: this.getComponent().getState().get( 'end' )
         } );
       },
 
       cancelAndClose: function (){
         this.cancelSelection();
-        this.getElement().getState().set( 'isDropdownOpen' , false );
+        this.getComponent().getState().set( 'isDropdownOpen' , false );
       },
       applyAndClose: function (){
         this.applySelection();
-        this.getElement().getState().set( 'isDropdownOpen' , false );
+        this.getComponent().getState().set( 'isDropdownOpen' , false );
       },
 
       model2viewModel: function ( state , params ){
@@ -895,7 +913,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // View Definition
-  var DrpView = ( function ( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement , CalendarDialogElement ) {
+  var DrpView = ( function ( BaseView , $ , _ , PredefinedComponent , DayCalendarComponent , MonthCalendarComponent , YearCalendarComponent , WeekCalendarComponent , CalendarDialogComponent ) {
     //'use strict';
 
     function bindToPage ( target , callback ) {
@@ -971,79 +989,77 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         var clickOutside = _.bind( this.clickOutside , this, false ) ;
         // TODO: verify if there are no ghost events.
-        bindToPage( this.el , clickOutside );
+        // bindToPage( this.el , clickOutside );
+
+        this.children = {};
 
       },
       renderChildren: function ( target , model ) {
-        var $items = $( target ).find( '.selectionItems' ),
-            myself = this;
+        var myself = this;
+
+      
+      var $items = $( target ).find( '.selectionItems' ),
+          myself = this;
 
         _.forEach( model.get( 'predefined' ) , function ( config , idx ) {
 
-          var item = new PredefinedElement( {
-            target: $( $items[ idx ] )
-          } );
+          var item = new PredefinedComponent();
 
-          item.update( config );
+          item.mount( ( $items[ idx ] ) ).update( config );
           myself.listenTo( item , 'activate' , function ( newRange ) {
             myself.trigger( 'changeRange' , newRange );
             myself.trigger( 'select' , config );
           } );
         } );
+      
 
-        var startCalendar = new DayCalendarElement( {
-          target: $( target ).find( '.startCalendar' )
-        } );
-        startCalendar.update( {
-          date: model.get( 'start' )
-        } );
-        myself.listenTo( startCalendar , 'selectDate' , function ( newStart ) {
+        ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
+          .mount( $( target ).find( '.startCalendar' ) )
+          .update( { date: model.get( 'start' ) } );
+        myself.listenTo( this.children['startCalendar'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
 
 
-
-        var startMonthCalendar = new MonthCalendarElement( {
-          target: $( target ).find( '.startMonthCalendar' )
-        } );
-        startMonthCalendar.update( {
-          date: model.get( 'start' )
-        } );
-        myself.listenTo( startMonthCalendar , 'selectDate' , function ( newStart ) {
+        ( this.children['startMonthCalendar'] = this.children['startMonthCalendar'] || new MonthCalendarComponent() )
+          .mount( $( target ).find( '.startMonthCalendar' ) )
+          .update( { date: model.get( 'start' ) } );
+        myself.listenTo( this.children['startMonthCalendar'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
 
 
-
-        var startYearCalendar = new YearCalendarElement( {
-          target: $( target ).find( '.startYearCalendar' )
-        } );
-        startYearCalendar.update( {
-          date: model.get( 'start' )
-        } );
-        myself.listenTo( startYearCalendar , 'selectDate' , function ( newStart ) {
+        ( this.children['startYearCalendar'] = this.children['startYearCalendar'] || new YearCalendarComponent() )
+          .mount( $( target ).find( '.startYearCalendar' ) )
+          .update( { date: model.get( 'start' ) } );
+        myself.listenTo( this.children['startYearCalendar'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
 
 
-
-        var startWeekCalendar = new WeekCalendarElement( {
-          target: $( target ).find( '.startWeekCalendar' )
-        } );
-        startWeekCalendar.update( {
-          date: model.get( 'start' )
-        } );
-        myself.listenTo( startWeekCalendar , 'selectDate' , function ( newStart ) {
+        ( this.children['startWeekCalendar'] = this.children['startWeekCalendar'] || new WeekCalendarComponent() )
+          .mount( $( target ).find( '.startWeekCalendar' ) )
+          .update( { date: model.get( 'start' ) } );
+        myself.listenTo( this.children['startWeekCalendar'] , 'selectDate' , function ( newStart ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
 
 
+        ( this.children['startCalendarDialog'] = this.children['startCalendarDialog'] || new CalendarDialogComponent() )
+          .mount( $( target ).find( '.startDialog' ) )
+          .update( { date: model.get( 'start' ) } );
+        myself.listenTo( this.children['startCalendarDialog'] , 'selectDate' , function ( newStart ) {
+          myself.trigger( 'changeRange' , { start: newStart } );
+          myself.trigger( 'select' , null );
+        } );
 
-        var endCalendar = new DayCalendarElement( {
+
+/*
+        var endCalendar = new DayCalendarComponent( {
           target: $( target ).find( '.endCalendar' )
         } );
         endCalendar.update( {
@@ -1056,36 +1072,25 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-        var speedyCalendar = new DayCalendarElement( {
+        var speedyCalendar = new DayCalendarComponent( {
           target: $( target ).find( '.speedyCalendar' )
         } );
         speedyCalendar.update( {
           date: ( model.get( 'end' ) ? model.get( 'end' ).clone().add( 42,'day' ) : null )
         } );
-/*        myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
+       myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
           myself.trigger( 'changeRange' , { end: newEnd } );
           myself.trigger( 'select' , null );
         } );
-*/
 
-        var slowPokeCalendar = new DayCalendarElement( {
+
+        var slowPokeCalendar = new DayCalendarComponent( {
           target: $( target ).find( '.slowPokeCalendar' )
         } );
         slowPokeCalendar.update( {
           date: ( model.get( 'start' ) ? model.get( 'start' ).clone().add( 4,'day' ) : null )
         } );
-
-
-        var startCalendarDialog = new CalendarDialogElement( {
-          target: $( target ).find( '.startDialog' )
-        } );
-        startCalendarDialog.update( {
-          date: model.get( 'start' )
-        } );
-        myself.listenTo( startCalendarDialog , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );
+*/
 
       }
 
@@ -1094,28 +1099,27 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     return View;
 
-  } )( BaseView , $ , _ , PredefinedElement , DayCalendarElement , MonthCalendarElement , YearCalendarElement , WeekCalendarElement , CalendarDialogElement );
+  } )( BaseView , $ , _ , PredefinedComponent , DayCalendarComponent , MonthCalendarComponent , YearCalendarComponent , WeekCalendarComponent , CalendarDialogComponent );
 
 
 
 
-  // DRP Element
-  var DrpElement = ( function ( BaseElement , DrpView , DrpController ) {
+  // DRP Component
+  var DrpComponent = ( function ( BaseComponent , DrpView , DrpController ) {
     //'use strict';
 
-    return BaseElement.extend( {
+    return BaseComponent.extend( {
       constructor: function ( opts ){
-        this.base( opts );
+        var _opts = opts || {};
+        this.base( _opts );
 
-        var viewOpts = _.extend( { target: opts.target } , opts.viewOpts );
-        this.setView( new DrpView( viewOpts ) );
-
+        this.setView( new DrpView( _opts.viewOpts ) );
         this.setController( new DrpController( this ) );
 
       }
     } );
 
-  } )( BaseElement, DrpView , DrpController );
+  } )( BaseComponent, DrpView , DrpController );
 
 
 
@@ -1136,10 +1140,9 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  **********************************************************************************************************************/
 
 
-  var drp = new DrpElement( {
-    target: '#somethingSomethingDarkside'
-  } );
+  var drp = new DrpComponent();
 
+  drp.mount( '#somethingSomethingDarkside' );
 
   var items = [
     { label: 'Month to Date', getRange: function ( ){ return { start: moment().startOf( 'month' ) , end: moment() }; } },
@@ -1157,6 +1160,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     drp.update( newRange );
   } );
 
+
+
+
+  var calendar = new DayCalendarComponent();
+
+  calendar.mount('#somethingElse');
+
+  calendar.listenTo( calendar , 'selectDate' , function ( newDate ){
+    calendar.update( { date: newDate } );
+  } );
 
 
   var exports = {
