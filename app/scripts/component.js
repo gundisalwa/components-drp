@@ -27,8 +27,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //--------------------------------//
 
     function extendClass ( TargetClass  ) {
-      var NewClass = Base.extend.apply( TargetClass, _.rest( arguments ) );
-      return NewClass;
+      return Base.extend.apply( TargetClass, _.rest( arguments ) );
     }
 
     function addSelfExtend ( TargetClass ) {
@@ -60,7 +59,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   } )( _ , Base , Backbone );
 
-
+/*
   // Base Collection
   var BaseCollection = ( function ( BaseBone ) {
     //'use strict';
@@ -96,7 +95,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     return Collection ;
 
-  } )( BaseBone );
+  } )( BaseBone );*/
 
 
 
@@ -184,7 +183,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         };
       },
 
-      renderView: function ( id ){
+      renderView: function (  ){
         var state = this.getModel('state').toJSON(),
             params = this.getModel('params').toJSON(),
             vm = this.model2viewModel( state , params );
@@ -223,14 +222,14 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
 
       setCachedContents: function ( contents ){
-        this.cachedContents = contents;       
+        this.cachedContents = contents;
       },
       getCachedContents: function (){
         return this.cachedContents;
       },
 
       render: function ( model ) {
-        if ( _.isObject( model ) ) { 
+        if ( _.isObject( model ) ) {
           this.getModel().set( model );
         }
         if ( this.getCachedContents() ){
@@ -372,7 +371,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           modifiedCallback = function ( model , value , options ){
             return boundcallback( value , options );
           };
-        };
+        }
 
         return this.base( observed , eventName , modifiedCallback );
       }
@@ -454,7 +453,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         this.base( _opts );
 
-        this.setView( new PredefinedView( _opts.viewOpts ) );
+        this.setView( new PredefinedView( _opts['viewOpts'] ) );
         this.setController( new PredefinedController( this.getState() , this.getParams() , this.getView() ) );
       }
 
@@ -503,7 +502,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
       return dates;
     }
-      
+
 
     return DrpBaseController.extend( {
       constructor: function ( state , params , view ){
@@ -530,7 +529,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
   // View Definition
-  var CalendarView = ( function ( BaseView , $ , _ , moment ) {
+  var CalendarView = ( function ( BaseView , $ , _  ) {
     //'use strict';
 
     function selfOrDescendant( target , selector ){
@@ -582,7 +581,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //--------------------------------//
 
 
-    var View = BaseView.extend( {
+    return BaseView.extend( {
       templates: {
         row:  '<tr class="calendarRow items"></tr>',
         body: '<table><thead class="calendarHeader"></thead><tbody class="rows"></tbody></table>',
@@ -594,15 +593,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-
-    return View;
-
-  } )( BaseView , $ , _ , moment );
+  } )( BaseView , $ , _  );
 
 
 
   // DRP Component
-  var CalendarComponent = ( function ( _ , moment , BaseComponent , CalendarView , DayCalendarController ) {
+  var CalendarComponent = ( function ( _ , moment , BaseComponent , CalendarView , CalendarController ) {
     //'use strict';
 
     return BaseComponent.extend( {
@@ -610,7 +606,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var _opts = opts || {};
         this.base( _opts );
 
-        this.setView( new CalendarView( _opts.viewOpts ) );
+        this.setView( new CalendarView( _opts['viewOpts'] ) );
         this.setController( new CalendarController( this.getState() , this.getParams() , this.getView() ) );
       }
     } );
@@ -625,7 +621,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   // DRP Component
   var DayCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
-    
+
     function getLimit ( limit , reference ){
       var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
       return moment( reference ).clone()[ op ]( 'month' )[ op ]( 'week' );
@@ -655,7 +651,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  // DRP Component
   var MonthCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
-    
+
     function getLimit ( limit , reference ){
       var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
       return moment( reference ).clone()[ op ]( 'year' );
@@ -685,7 +681,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
    // DRP Component
   var YearCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
-    
+
     function getStart ( ){
       return moment().add( -20 , 'year' ).startOf('year');
     }
@@ -718,7 +714,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
  // DRP Component
   var WeekCalendarComponent = ( function ( _ , moment , CalendarComponent ) {
     //'use strict';
-    
+
     function getLimit ( limit , reference ){
       var op = ( limit == 'end' ) ? 'endOf' : 'startOf';
       return moment( reference ).clone()[ op ]( 'year' )[op]('week');
@@ -753,7 +749,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   var CalendarDialogView = ( function ( BaseView , DayCalendarComponent , MonthCalendarComponent , WeekCalendarComponent , YearCalendarComponent ){
     // 'use strict';
-    
+
     function getCalendarComponent ( mode ){
       var map = {
         'day' : DayCalendarComponent,
@@ -763,7 +759,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       };
       return ( mode && map[mode] ) || map['day'];
     }
-    
+
     return BaseView.extend({
       events:{
         'click .dayMode': 'selectDay',
@@ -773,15 +769,15 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
 
       // Emmitted Events
-      selectDay: function ( mode ){ this.selectMode('day') },
-      selectWeek: function ( mode ){ this.selectMode('week') },
-      selectMonth: function ( mode ){ this.selectMode('month') },
-      selectYear: function ( mode ){ this.selectMode('year') },
+      selectDay: function ( ){ this.selectMode('day') },
+      selectWeek: function ( ){ this.selectMode('week') },
+      selectMonth: function ( ){ this.selectMode('month') },
+      selectYear: function ( ){ this.selectMode('year') },
       selectMode: function ( mode ){
         this.trigger('selectMode', mode );
       },
-      
-      template: 
+
+      template:
         '<div>' +
         '  <div class="modesContainer">' +
         '    <div class="dayMode">Day</div>' +
@@ -797,11 +793,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         var CurrentCalendar = getCalendarComponent( model.get('mode') ),
             calendar = new CurrentCalendar();
-        
+
         calendar
           .mount( $(target).find('.calendarContainer') )
           .update({ date: model.get('date') });
-        
+
         myself.listenTo( calendar , 'selectDate' , function ( newDate ) {
           myself.trigger( 'selectDate' , newDate );
         });
@@ -813,7 +809,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   var CalendarDialogController = ( function ( DrpBaseController ){
     // 'use strict';
-    
+
     return DrpBaseController.extend({
       constructor: function ( state , params , view ){
         this.base( state , params , view );
@@ -844,7 +840,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var _opts = opts || {};
         this.base( _opts );
 
-        this.setView( new CalendarDialogView( _opts.viewOpts ) );
+        this.setView( new CalendarDialogView( _opts['viewOpts'] ) );
         this.setController( new CalendarDialogController( this.getState() , this.getParams() , this.getView() ) );
 
       }
@@ -865,10 +861,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var DrpController = ( function ( _ , DrpBaseController ){
     //'use strict';
 
-    function partialRight( fn ){
-
-    }
-
     //--------------------------------//
 
     return DrpBaseController.extend( {
@@ -883,12 +875,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         // TODO: temporarily copying predefined to internal state
         this.listenTo( params , 'change:predefined' , state.getSetter( 'predefined' ) );
 
-        this.listenTo( view , 'clickOutside'   , this.toggleDropdown );
+        this.listenTo( view , 'clickOutside'   , _.partial( this.toggleDropdown , false ) );
         this.listenTo( view , 'clickOnDisplay' , this.toggleDropdown );
 
         this.listenTo( view , 'changeRange' , this.updateRange );
 
-        // TODO: Make this more generic to account for all the selector paremeters
+        // TODO: Make this more generic to account for all the selector parameters
         this.listenTo( view , 'cancel' , this.cancelAndClose );
 
         this.listenTo( view , 'apply' , this.applyAndClose );
@@ -980,7 +972,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //--------------------------------//
 
 
-    var View = BaseView.extend( {
+    return BaseView.extend( {
       events: {
         'click .rangeDisplay': 'clickOnDisplay',
         'click .applyButton': 'apply',
@@ -988,7 +980,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
 
       // Emmitted Events
-      clickOnDisplay: function ( predicate ) {
+      clickOnDisplay: function ( ) {
         this.trigger( 'clickOnDisplay' );
       },
       apply: function (){
@@ -1051,10 +1043,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       renderChildren: function ( target , model ) {
         var myself = this;
 
-      
-      var $items = $( target ).find( '.selectionItems' ),
-          myself = this;
-
+        var $items = $( target ).find( '.selectionItems' );
         _.forEach( model.get( 'predefined' ) , function ( config , idx ) {
 
           var item = new PredefinedComponent();
@@ -1065,7 +1054,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
             myself.trigger( 'select' , config );
           } );
         } );
-      
+
 
       /*  ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
           .mount( $( target ).find( '.startCalendar' ) )
@@ -1158,9 +1147,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-
-    return View;
-
   } )( BaseView , $ , _ , PredefinedComponent , DayCalendarComponent , MonthCalendarComponent , YearCalendarComponent , WeekCalendarComponent , CalendarDialogComponent );
 
 
@@ -1175,7 +1161,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var _opts = opts || {};
         this.base( _opts );
 
-        this.setView( new DrpView( _opts.viewOpts ) );
+        this.setView( new DrpView( _opts['viewOpts'] ) );
         this.setController( new DrpController( this.getState() , this.getParams() , this.getView() ) );
 
       }
