@@ -59,6 +59,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   } )( _ , Base , Backbone );
 
+
+
 /*
   // Base Collection
   var BaseCollection = ( function ( BaseBone ) {
@@ -163,17 +165,25 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     return BaseController.extend( {
-      constructor: function ( state , params , view ){
+      constructor: function ( stateModel , paramsModel , view ){
         this.base(
-          { state: state , params: params },
+          { state: stateModel , params: paramsModel },
           { main: view }
         );
 
         // Create Bindings
-        this.listenTo( state  , 'change' , this.renderView  );
-        this.listenTo( params , 'change' , this.renderView  );
+        this.listenTo( stateModel  , 'change' , this.renderView  );
+        this.listenTo( paramsModel , 'change' , this.renderView  );
 
       },
+
+      setView: function ( view ){
+        this.base( view , 'main' );
+      },
+      getView: function (){
+        return this.base( 'main' );
+      },
+
 
       model2viewModel: function ( state , params ){
         // Default Implementation of model -> viewModel transformation. Override as needed.
@@ -187,7 +197,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         var state = this.getModel('state').toJSON(),
             params = this.getModel('params').toJSON(),
             vm = this.model2viewModel( state , params );
-        // TODO: too intricated. refactor cycle???
         return this.getView('main').render( vm  );
       }
 
@@ -277,17 +286,17 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         // Set Params model
-        this.setParams( new BaseModel( _opts.params ) );
+        this.setParamsModel( new BaseModel( _opts.params ) );
 
         // Set State model
-        this.setState( new BaseModel( _opts.state ) );
+        this.setStateModel( new BaseModel( _opts.state ) );
 
       },
 
       // API
       update: function ( newInput ){
         // TODO: promisses???
-        this.getParams().set( newInput );
+        this.getParamsModel().set( newInput );
         this.trigger( 'updated' , newInput );
         return this;
       },
@@ -334,16 +343,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.trigger.apply( this , arguments );
       },
 
-      setParams: function( params ){
+      setParamsModel: function( params ){
         this.params = params;
       },
-      getParams: function(){
+      getParamsModel: function(){
         return this.params;
       },
-      setState: function( state ){
+      setStateModel: function( state ){
         this.state = state;
       },
-      getState: function(){
+      getStateModel: function(){
         return this.state;
       }
 
@@ -396,8 +405,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //'use strict';
 
     return DrpBaseController.extend( {
-      constructor: function ( state , params , view ){
-        this.base(  state , params , view );
+      constructor: function ( stateModel , paramsModel , view ){
+        this.base(  stateModel , paramsModel , view );
 
         // Create Bindings
         this.listenTo ( view , 'click' , this.activate );
@@ -454,7 +463,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new PredefinedView( _opts['viewOpts'] ) );
-        this.setController( new PredefinedController( this.getState() , this.getParams() , this.getView() ) );
+        this.setController( new PredefinedController( this.getStateModel() , this.getParamsModel() , this.getView() ) );
       }
 
     } );
@@ -505,8 +514,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
     return DrpBaseController.extend( {
-      constructor: function ( state , params , view ){
-        this.base( state , params , view );
+      constructor: function ( stateModel , paramsModel , view ){
+        this.base( stateModel , paramsModel , view );
 
         // Create Bindings
         this.listenTo ( view , 'selectDate' , this.selectDate );
@@ -607,7 +616,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new CalendarView( _opts['viewOpts'] ) );
-        this.setController( new CalendarController( this.getState() , this.getParams() , this.getView() ) );
+        this.setController( new CalendarController( this.getStateModel() , this.getParamsModel() , this.getView() ) );
       }
     } );
 
@@ -811,12 +820,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     // 'use strict';
 
     return DrpBaseController.extend({
-      constructor: function ( state , params , view ){
-        this.base( state , params , view );
+      constructor: function ( stateModel , paramsModel , view ){
+        this.base( stateModel , paramsModel , view );
 
         this.listenTo( view , 'selectDate' , this.selectDate );
 
-        this.listenTo( view , 'selectMode' , state.getSetter( 'mode' ) );
+        this.listenTo( view , 'selectMode' , stateModel.getSetter( 'mode' ) );
       },
       model2viewModel: function ( state ,  params ){
         return {
@@ -841,7 +850,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new CalendarDialogView( _opts['viewOpts'] ) );
-        this.setController( new CalendarDialogController( this.getState() , this.getParams() , this.getView() ) );
+        this.setController( new CalendarDialogController( this.getStateModel() , this.getParamsModel() , this.getView() ) );
 
       }
     } );
@@ -864,16 +873,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     //--------------------------------//
 
     return DrpBaseController.extend( {
-      constructor: function ( state , params , view ){
-        this.base( state , params , view );
+      constructor: function ( stateModel , paramsModel , view ){
+        this.base( stateModel , paramsModel , view );
 
         // Create Bindings
         // Bind day start and date end params to internal temp state
-        this.listenTo( params , 'change:start', state.getSetter( 'start' ) );
-        this.listenTo( params , 'change:end', state.getSetter( 'end' ) );
+        this.listenTo( paramsModel , 'change:start', stateModel.getSetter( 'start' ) );
+        this.listenTo( paramsModel , 'change:end', stateModel.getSetter( 'end' ) );
 
         // TODO: temporarily copying predefined to internal state
-        this.listenTo( params , 'change:predefined' , state.getSetter( 'predefined' ) );
+        this.listenTo( paramsModel , 'change:predefined' , stateModel.getSetter( 'predefined' ) );
 
         this.listenTo( view , 'clickOutside'   , _.partial( this.toggleDropdown , false ) );
         this.listenTo( view , 'clickOnDisplay' , this.toggleDropdown );
@@ -887,11 +896,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         // TODO: Clean up predefined
         this.listenTo( view , 'select' , function( selectedItem ){
-          var items = _.clone( state.get( 'predefined' ) );
+          var items = _.clone( stateModel.get( 'predefined' ) );
           _.forEach( items, function ( item ){
             item.isSelected = ( _.isEqual( item , selectedItem ) );
           } );
-          state.set( 'predefined', items );
+          stateModel.set( 'predefined', items );
         } );
 
       },
@@ -1011,7 +1020,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '      {{/predefined}}' +
         '    </div> ' +
         '    <br> ' +
-/*        '    <div class="startCalendar"></div> ' +
+        '    <div class="startCalendar"></div> ' +
         '    <br> ' +
         '    <div class="startMonthCalendar"></div> ' +
         '    <br> ' +
@@ -1024,7 +1033,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '    <div class="speedyCalendar"></div> ' +
         '    <br> ' +
         '    <div class="slowPokeCalendar"></div> ' +
-*/      '    <div class="row"> ' +
+        '    <div class="row"> ' +
         '      <div class="startCalendarDialog col-xs-6"></div> ' +
         '       <div class="endCalendarDialog col-xs-6"></div> ' +
         '    </div>' +
@@ -1056,7 +1065,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         } );
 
 
-      /*  ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
+        ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
           .mount( $( target ).find( '.startCalendar' ) )
           .update( { date: model.get( 'start' ) } );
         myself.listenTo( this.children['startCalendar'] , 'selectDate' , function ( newStart ) {
@@ -1083,7 +1092,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         } );
 
 
-        ( this.children['startWeekCalendar'] = this.children['startWeekCalendar'] || new WeekCalendarComponent() )
+/*        ( this.children['startWeekCalendar'] = this.children['startWeekCalendar'] || new WeekCalendarComponent() )
           .mount( $( target ).find( '.startWeekCalendar' ) )
           .update( { date: model.get( 'start' ) } );
         myself.listenTo( this.children['startWeekCalendar'] , 'selectDate' , function ( newStart ) {
@@ -1099,6 +1108,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           myself.trigger( 'changeRange' , { start: newStart } );
           myself.trigger( 'select' , null );
         } );
+
 
         ( this.children['endCalendarDialog'] = this.children['endCalendarDialog'] || new CalendarDialogComponent() )
           .mount( $( target ).find( '.endCalendarDialog' ) )
@@ -1162,7 +1172,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( _opts );
 
         this.setView( new DrpView( _opts['viewOpts'] ) );
-        this.setController( new DrpController( this.getState() , this.getParams() , this.getView() ) );
+        this.setController( new DrpController( this.getStateModel() , this.getParamsModel() , this.getView() ) );
 
       }
     } );
