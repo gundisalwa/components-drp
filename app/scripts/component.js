@@ -867,7 +867,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
 
 
-  var DrpController = ( function ( _ , DrpBaseController ){
+  var DrpController = ( function ( $ , _ , DrpBaseController ){
     //'use strict';
 
     //--------------------------------//
@@ -896,7 +896,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         // TODO: Clean up predefined
         this.listenTo( view , 'select' , function( selectedItem ){
-          var items = _.clone( stateModel.get( 'predefined' ) );
+          var items = $.extend( true , [], stateModel.get( 'predefined' ) );
           _.forEach( items, function ( item ){
             item.isSelected = ( _.isEqual( item , selectedItem ) );
           } );
@@ -957,7 +957,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     } );
 
-  } )( _ , DrpBaseController );
+  } )( $ , _ , DrpBaseController );
 
 
 
@@ -1052,107 +1052,109 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       renderChildren: function ( target , model ) {
         var myself = this;
 
-        var $items = $( target ).find( '.selectionItems' );
-        _.forEach( model.get( 'predefined' ) , function ( config , idx ) {
+        if ( model.get('isDropdownOpen') ) {
 
-          var item = new PredefinedComponent();
+          var $items = $(target).find('.selectionItems');
+          _.forEach(model.get('predefined'), function (config, idx) {
 
-          item.mount( ( $items[ idx ] ) ).update( config );
-          myself.listenTo( item , 'activate' , function ( newRange ) {
-            myself.trigger( 'changeRange' , newRange );
-            myself.trigger( 'select' , config );
-          } );
-        } );
+            var item = new PredefinedComponent();
 
-
-        ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
-          .mount( $( target ).find( '.startCalendar' ) )
-          .update( { date: model.get( 'start' ) } );
-        myself.listenTo( this.children['startCalendar'] , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );
+            item.mount(( $items[idx] )).update(config);
+            myself.listenTo(item, 'activate', function (newRange) {
+              myself.trigger('changeRange', newRange);
+              myself.trigger('select', config);
+            });
+          });
 
 
-        ( this.children['startMonthCalendar'] = this.children['startMonthCalendar'] || new MonthCalendarComponent() )
-          .mount( $( target ).find( '.startMonthCalendar' ) )
-          .update( { date: model.get( 'start' ) } );
-        myself.listenTo( this.children['startMonthCalendar'] , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );
+          ( this.children['startCalendar'] = this.children['startCalendar'] || new DayCalendarComponent() )
+            .mount($(target).find('.startCalendar'))
+            .update({date: model.get('start')});
+          myself.listenTo(this.children['startCalendar'], 'selectDate', function (newStart) {
+            myself.trigger('changeRange', {start: newStart});
+            myself.trigger('select', null);
+          });
 
 
-        ( this.children['startYearCalendar'] = this.children['startYearCalendar'] || new YearCalendarComponent() )
-          .mount( $( target ).find( '.startYearCalendar' ) )
-          .update( { date: model.get( 'start' ) } );
-        myself.listenTo( this.children['startYearCalendar'] , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );
+          ( this.children['startMonthCalendar'] = this.children['startMonthCalendar'] || new MonthCalendarComponent() )
+            .mount($(target).find('.startMonthCalendar'))
+            .update({date: model.get('start')});
+          myself.listenTo(this.children['startMonthCalendar'], 'selectDate', function (newStart) {
+            myself.trigger('changeRange', {start: newStart});
+            myself.trigger('select', null);
+          });
 
 
-/*        ( this.children['startWeekCalendar'] = this.children['startWeekCalendar'] || new WeekCalendarComponent() )
-          .mount( $( target ).find( '.startWeekCalendar' ) )
-          .update( { date: model.get( 'start' ) } );
-        myself.listenTo( this.children['startWeekCalendar'] , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );*/
+          ( this.children['startYearCalendar'] = this.children['startYearCalendar'] || new YearCalendarComponent() )
+            .mount($(target).find('.startYearCalendar'))
+            .update({date: model.get('start')});
+          myself.listenTo(this.children['startYearCalendar'], 'selectDate', function (newStart) {
+            myself.trigger('changeRange', {start: newStart});
+            myself.trigger('select', null);
+          });
 
 
-        ( this.children['startCalendarDialog'] = this.children['startCalendarDialog'] || new CalendarDialogComponent() )
-          .mount( $( target ).find( '.startCalendarDialog' ) )
-          .update( { date: model.get( 'start' ) } );
-        myself.listenTo( this.children['startCalendarDialog'] , 'selectDate' , function ( newStart ) {
-          myself.trigger( 'changeRange' , { start: newStart } );
-          myself.trigger( 'select' , null );
-        } );
+          /*        ( this.children['startWeekCalendar'] = this.children['startWeekCalendar'] || new WeekCalendarComponent() )
+           .mount( $( target ).find( '.startWeekCalendar' ) )
+           .update( { date: model.get( 'start' ) } );
+           myself.listenTo( this.children['startWeekCalendar'] , 'selectDate' , function ( newStart ) {
+           myself.trigger( 'changeRange' , { start: newStart } );
+           myself.trigger( 'select' , null );
+           } );*/
 
 
-        ( this.children['endCalendarDialog'] = this.children['endCalendarDialog'] || new CalendarDialogComponent() )
-          .mount( $( target ).find( '.endCalendarDialog' ) )
-          .update( { date: model.get( 'end' ) } );
-        myself.listenTo( this.children['endCalendarDialog'] , 'selectDate' , function ( newEnd ) {
-          myself.trigger( 'changeRange' , { end: newEnd } );
-          myself.trigger( 'select' , null );
-        } );
+          ( this.children['startCalendarDialog'] = this.children['startCalendarDialog'] || new CalendarDialogComponent() )
+            .mount($(target).find('.startCalendarDialog'))
+            .update({date: model.get('start')});
+          myself.listenTo(this.children['startCalendarDialog'], 'selectDate', function (newStart) {
+            myself.trigger('changeRange', {start: newStart});
+            myself.trigger('select', null);
+          });
 
 
-/*
-        var endCalendar = new DayCalendarComponent( {
-          target: $( target ).find( '.endCalendar' )
-        } );
-        endCalendar.update( {
-          date: model.get( 'end' )
-        } );
-        myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
-          myself.trigger( 'changeRange' , { end: newEnd } );
-          myself.trigger( 'select' , null );
-        } );
+          ( this.children['endCalendarDialog'] = this.children['endCalendarDialog'] || new CalendarDialogComponent() )
+            .mount($(target).find('.endCalendarDialog'))
+            .update({date: model.get('end')});
+          myself.listenTo(this.children['endCalendarDialog'], 'selectDate', function (newEnd) {
+            myself.trigger('changeRange', {end: newEnd});
+            myself.trigger('select', null);
+          });
+
+
+          /*
+           var endCalendar = new DayCalendarComponent( {
+           target: $( target ).find( '.endCalendar' )
+           } );
+           endCalendar.update( {
+           date: model.get( 'end' )
+           } );
+           myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
+           myself.trigger( 'changeRange' , { end: newEnd } );
+           myself.trigger( 'select' , null );
+           } );
 
 
 
-        var speedyCalendar = new DayCalendarComponent( {
-          target: $( target ).find( '.speedyCalendar' )
-        } );
-        speedyCalendar.update( {
-          date: ( model.get( 'end' ) ? model.get( 'end' ).clone().add( 42,'day' ) : null )
-        } );
-       myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
-          myself.trigger( 'changeRange' , { end: newEnd } );
-          myself.trigger( 'select' , null );
-        } );
+           var speedyCalendar = new DayCalendarComponent( {
+           target: $( target ).find( '.speedyCalendar' )
+           } );
+           speedyCalendar.update( {
+           date: ( model.get( 'end' ) ? model.get( 'end' ).clone().add( 42,'day' ) : null )
+           } );
+           myself.listenTo( endCalendar , 'selectDate' , function ( newEnd ) {
+           myself.trigger( 'changeRange' , { end: newEnd } );
+           myself.trigger( 'select' , null );
+           } );
 
 
-        var slowPokeCalendar = new DayCalendarComponent( {
-          target: $( target ).find( '.slowPokeCalendar' )
-        } );
-        slowPokeCalendar.update( {
-          date: ( model.get( 'start' ) ? model.get( 'start' ).clone().add( 4,'day' ) : null )
-        } );
-*/
-
+           var slowPokeCalendar = new DayCalendarComponent( {
+           target: $( target ).find( '.slowPokeCalendar' )
+           } );
+           slowPokeCalendar.update( {
+           date: ( model.get( 'start' ) ? model.get( 'start' ).clone().add( 4,'day' ) : null )
+           } );
+           */
+        }
       }
 
     } );
