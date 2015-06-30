@@ -96,5 +96,9 @@ body {
 
 
 .selected {
-  background: red;
+  background: lightskyblue;
+}
+
+.selected .selected {
+  background: #ff848c;
 }
