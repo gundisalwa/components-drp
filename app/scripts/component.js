@@ -37,7 +37,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return extendClass( TargetClass , Events );
     }
 
-    function basebonify ( TargetClass ) {
+    function convert ( TargetClass ) {
       return extendClass(
               addEvents( addSelfExtend( TargetClass ) ) ,
               arguments[ 1 ] ,
@@ -46,13 +46,12 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
     }
 
     // Returns an empty constructor augmented with Base.js inheritance and Backbone Events.
-    var exports = basebonify( noop );
+    var exports = convert( noop );
 
     //--------------------------------//
 
     exports.extendClass = extendClass;
-    exports.basebonify = basebonify;
-    exports.convert = basebonify;
+    exports.convert = convert;
 
     return exports;
 
@@ -70,7 +69,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
     // We need to explicitly pass a constructor because we don't want Base.js to do
     // Array.apply, which will break.
-    var Collection = BaseBone.basebonify( SeedCollection , {
+    var Collection = BaseBone.convert( SeedCollection , {
       constructor: SeedCollection,
       push: function ( ) {
         var ret = this.base.apply( this , arguments ),
@@ -107,13 +106,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var BaseModel = ( function ( _ , BaseBone , Backbone ) {
     //'use strict';
 
-    return BaseBone.basebonify( Backbone.Model , {
-      getSetter: function ( attributeName ){
-        return _.bind( this.set , this , attributeName );
-      },
-      getGetter: function ( attributeName ){
-        return _.bind( this.get , this , attributeName );
-      },
+    return BaseBone.convert( Backbone.Model , {
       get: function ( attributeName ){
         return _.isEmpty( attributeName ) ? this.toJSON() : this.base.apply( this, arguments );
       }
@@ -149,7 +142,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
       watchModelValue: function ( id , attributeName , callback ){
         var eventName = _.isEmpty( attributeName )  ? 'change' : 'change:' + attributeName;
-        return this.listenTo( this.getModel( id ) , eventName , callback );
+        return this.listenTo( this.getModel( id ) , eventName , _.bind( callback , this ) );
       },
 
       setView: function ( view  , id ){
@@ -159,7 +152,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         return this.views[id];
       },
       watchView: function ( id , event , callback ){
-        return this.listenTo( this.getView( id ) , event , callback );
+        return this.listenTo( this.getView( id ) , event , _.bind( callback , this ) );
       }
 
     } );
@@ -176,10 +169,22 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           { main: view }
         );
 
-        // Create Bindings
+        // Create Bindings.
         this.watchState( '' , this.updateView  );
         this.watchParam( '' , this.updateView  );
 
+      },
+      model2viewModel: function ( state , params ){
+        // Default Implementation of model -> viewModel transformation. Override as needed.
+        return {
+          state: state,
+          params: params
+        };
+      },
+
+      updateView: function (  ){
+        return this.getView('main')
+          .update( this.model2viewModel( this.getState() , this.getParam() ) );
       },
 
       watchView: function ( event , callback ){
@@ -199,20 +204,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       },
       watchState: function ( attribute , callback ){
         return this.watchModelValue( 'state' , attribute , callback );
-      },
-
-
-      model2viewModel: function ( state , params ){
-        // Default Implementation of model -> viewModel transformation. Override as needed.
-        return {
-          state: state,
-          params: params
-        };
-      },
-
-      updateView: function (  ){
-        var vm = this.model2viewModel( this.getState() , this.getParam() );
-        return this.getView('main').update( vm  );
       },
 
       listenTo: function ( observed , eventName , callback ){
@@ -237,7 +228,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var BaseView = ( function ( _ , $ , Mustache , BaseBone , Backbone , BaseModel ) {
     //'use strict';
 
-    return BaseBone.basebonify( Backbone.View ,{
+    return BaseBone.convert( Backbone.View ,{
       constructor: function ( config ) {
         this.children = {};
         this.base.apply( this, arguments );
@@ -284,7 +275,11 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         return this.getElement();
       },
-
+      mount: function( node ){
+        this.setElement( node );
+        // TODO: Review this. Probably doing too many updates but this is needed to always force a render on a mount.
+        this.update();
+      },
       render: function (){
         return this.getElement().html( this.renderTemplate( this.getTemplate() , this.getModel().toJSON() ) );
       },
@@ -327,21 +322,23 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
       // API
       update: function ( newInput ){
-        // TODO: promisses???
         this.getParamsModel().set( newInput );
-        this.trigger( 'updated' , newInput );
+        this.trigger( 'update' , newInput );
         return this;
       },
-      // TODO: Review this...
       render: function (){
         // TODO: promisses???
-        this.getController().updateView( );
+        if ( this.getView() ){
+          this.getView().render( );
+        }
         this.trigger( 'render' , this );
         return this;
       },
       mount: function ( node ){
         this.setMountNode( node );
-        this.render();
+        if ( this.getView() ){
+          this.getView().mount( this.getMountNode() );
+        }
         this.trigger( 'mount' , this );
         return this;
       },
@@ -350,7 +347,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       setMountNode: function ( node ){
         if ( node ){
           this.mountNode = $(node);
-          this.getView().setElement( this.mountNode );
         }
       },
       getMountNode: function ( ){
@@ -411,15 +407,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base(  stateModel , paramsModel , view );
 
         // Create Bindings
-        this.watchView( 'clickOnDisplay' , this.activate );
+        this.watchView( 'clickOnDisplay' , this.changeRange );
+
       },
       model2viewModel: function ( state , params ){
         return {
-          label: params.label
+          label: params.config.label
         };
       },
-      activate: function (){
-        this.trigger( 'activate' , this.getParam( 'getRange' )() );
+      changeRange: function (){
+        this.trigger( 'changeRange' , this.getParam( 'config' ).getRangeState() );
       }
     } );
 
@@ -503,7 +500,8 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( stateModel , paramsModel , view );
 
         // Create Bindings
-        this.watchView ( 'selectDate' , _.bind( this.selectDate, this ) );
+        this.watchView ( 'selectDate' , this.selectDate );
+
       },
       model2viewModel: function ( state , params ){
         var start = state.getStart( params.date ),
@@ -524,6 +522,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var CalendarView = ( function ( BaseView , $ , _  ) {
     //'use strict';
 
+    // TODO: Not totally sure about this structure...
     function selfOrDescendant( target , selector ){
       return $( target ).find( selector ).addBack( selector );
     }
@@ -700,7 +699,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           getStart: _.partial( getLimit , 'start' ),
           getEnd: _.partial( getLimit , 'end' ),
           grain: 'week',
-          itemDisplayFormat: 'WW'
+          itemDisplayFormat: '[W]WW'
         });
 
       }
@@ -744,7 +743,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var CalendarDialogView = ( function ( BaseView , DayCalendarComponent , MonthCalendarComponent , WeekCalendarComponent , YearCalendarComponent , QuarterCalendarComponent ){
     // 'use strict';
 
-    function getCalendarComponent ( mode ){
+    function getCalendarComponent ( grain ){
       var map = {
         'day' : DayCalendarComponent,
         'week': WeekCalendarComponent,
@@ -752,40 +751,28 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         'quarter': QuarterCalendarComponent,
         'year': YearCalendarComponent
       };
-      return ( mode && map[mode] ) || map['day'];
+      return ( grain && map[grain] ) || map['day'];
     }
 
     return BaseView.extend({
       events:{
-        'click .dayMode': 'selectDay',
-        'click .weekMode': 'selectWeek',
-        'click .monthMode': 'selectMonth',
-        'click .quarterMode': 'selectQuarter',
-        'click .yearMode': 'selectYear'
       },
 
       // Emmitted Events
-      selectDay: function ( ){ this.selectMode('day') },
-      selectWeek: function ( ){ this.selectMode('week') },
-      selectMonth: function ( ){ this.selectMode('month') },
-      selectQuarter: function ( ){ this.selectMode('quarter') },
-      selectYear: function ( ){ this.selectMode('year') },
-      selectMode: function ( mode ){
-        this.trigger('selectMode', mode );
+      selectGrain: function ( grain ){
+        this.trigger('selectGrain', grain );
       },
 
       template:
         '<div>' +
-        '  <div class="modesContainer">' +
-        '    <div class="dayMode">Day</div>' +
-        '    <div class="weekMode">Week</div>' +
-        '    <div class="monthMode">Month</div>' +
-        '    <div class="quarterMode">Quarter</div>' +
-        '    <div class="yearMode">Year</div>' +
+        '  <div class="grainsContainer">' +
         '  </div>'+
         '  <div class="calendarContainer">' +
         '  </div>' +
         '</div>',
+      templates: {
+        grain: '<div class="grainButton">{{label}}</div>'
+      },
       render: function ( ){
         var myself = this,
             target = this.getElement(),
@@ -793,7 +780,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         this.base.apply( this, arguments );
 
-        var CurrentCalendar = getCalendarComponent( model.get('mode') ),
+        $(target).find('.grainsContainer')
+          .append( _.map( model.get('grains') , _.bind( this.renderGrain, this ) ) );
+
+        var CurrentCalendar = getCalendarComponent( model.get('grain') ),
             calendar = new CurrentCalendar();
 
         calendar
@@ -807,6 +797,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         myself.listenTo( calendar , 'selectDate' , function ( newDate ) {
           myself.trigger( 'selectDate' , newDate );
         });
+      },
+      renderGrain: function ( grainModel , grainKey ){
+        return $( this.renderTemplate( this.getTemplate('grain') , grainModel ) )
+          .click( _.bind( this.selectGrain , this , grainKey ) );
       }
     });
 
@@ -815,27 +809,60 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var CalendarDialogController = ( function ( ComponentController ){
     // 'use strict';
 
+    function getAvailableGrains( mode ){
+      var mode2GrainsMap = {
+        day: [ 'day' , 'month' , 'year' ],
+        week: [ 'week' , 'year' ],
+        month: [ 'month' , 'year' ],
+        quarter: [ 'quarter' , 'year' ],
+        year: [ 'year' ]
+      };
+
+      return mode2GrainsMap[mode];
+    }
+
+    // TODO: Review formats. Probably they should be a configuration option.
+    function getGrainsDisplay( date , grain ){
+      var formatMap = {
+        'day': 'D',
+        'week': '[W]WW',
+        'month': 'MMM',
+        'quarter': '[Q]QQ',
+        'year': 'YYYY'
+      };
+      return date.format( formatMap[grain] );
+    }
+
+    function getGrainsModel ( date , mode ){
+      var grains = {};
+      _.forEach( getAvailableGrains( mode ) , function ( grain ) {
+        grains[grain] = { label: getGrainsDisplay( date , grain ) }
+      });
+      return grains;
+    }
+
     return ComponentController.extend({
       constructor: function ( stateModel , paramsModel , view ){
         this.base( stateModel , paramsModel , view );
 
         this.watchView( 'selectDate' , this.selectDate );
+        this.watchView( 'selectGrain' , _.partial( this.setState , 'grain' ) );
 
-        this.watchView( 'selectMode' , stateModel.getSetter( 'mode' ) );
       },
       model2viewModel: function ( state ,  params ){
         return {
-          mode: state.mode,
+          grain: state.grain,
           date: params.date,
+          grains: getGrainsModel( params.date , params.mode ),
           max: params.max,
           min: params.min
         }
       },
       selectDate: function ( newDate ){
         // TODO: normalize date inside the max/min parameters.
-        var mode = this.getState('mode'),
+        var grain = this.getState('grain'),
             op = ( this.getParam('edge') == 'end' ) ? 'endOf' : 'startOf';
-        this.trigger( 'selectDate' , newDate[op]( mode ) );
+        this.trigger( 'selectDate' , newDate[op]( grain ) );
       }
     });
 
@@ -872,7 +899,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       return $( document )
         .off('click.' + uniqueId )
         .on( 'click.' + uniqueId , function ( ev ) {
-          var aaa = uniqueId;
           // The second part of this test accounts for when the original target is already detached
           // from the DOM, possibly because another event triggered a rerender.
           if ( ! $.contains( target , ev.target ) && $.contains( document.body , ev.target ) ){
@@ -937,7 +963,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
               max: model.get('max'),
               min: model.get('min'),
               edge: model.get('edge'),
-              mode: model.get('calendarMode')
+              mode: model.get('mode')
             });
 
         }
@@ -955,9 +981,6 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base( stateModel , paramsModel , view );
 
         this.watchView( 'selectDate' , this.selectDate );
-
-        this.watchView( 'selectMode' , stateModel.getSetter( 'calendarMode' ) );
-
         this.watchView( 'clickOnDisplay' , this.toggleDialog );
         this.watchView( 'clickOutside'   , _.partial( this.toggleDialog , false ) );
 
@@ -966,7 +989,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         // TODO: Add formatting here
         var displayDate = params.date ? params.date.format() : "";
         return {
-          calendarMode: state.calendarMode,
+          mode: params.mode,
           date: params.date,
           max: params.max,
           min: params.min,
@@ -1014,6 +1037,20 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var CustomRangeController = ( function ( $ , _ , ComponentController ){
     //'use strict';
 
+    function getAllModes (){
+      return {
+        'day': { label: 'Daily' } ,
+        'week': { label: 'Weekly' },
+        'month': { label: 'Monthly' },
+        'quarter': { label: 'Quarterly' },
+        'year': { label: 'Yearly' }
+      }
+    }
+
+    function getFilteredModes( filter ){
+      return _.isEmpty(filter) ? getAllModes() : _.pick( getAllModes() , filter );
+    }
+
     //--------------------------------//
 
     return ComponentController.extend( {
@@ -1022,18 +1059,32 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
         // Create Bindings
         this.watchView( 'changeRange' , this.updateRange );
+        this.watchParam( 'mode' , this.validateMode );
 
       },
 
+      validateMode: function ( mode ){
+        var filteredModes = getFilteredModes( this.getParam('modes') );
+        if ( !_.has( filteredModes , mode ) ) {
+          this.updateRange( { mode: _.first( _.keys( filteredModes ) ) } );
+        }
+      },
       updateRange: function ( newRange ){
         this.trigger('changeRange' , newRange );
       },
 
       model2viewModel: function ( state , params ){
+
+        var modes = getFilteredModes( params.modes );
+        _.forEach( modes , function ( mode , key ){
+          mode.isSelected = ( key == params.mode );
+        });
+
         return {
           start: params.start,
           end:   params.end,
           mode: params.mode,
+          modes: modes,
           grain: params.grain,
           isSelected: params.isSelected
         };
@@ -1078,6 +1129,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
       '    </div> ' +
       '  {{/isSelected}}' +
       '</div>',
+      templates: {
+        'mode':
+          '<div class="customRangeMode {{#isSelected}}selected{{/isSelected}}">{{label}}</div>'
+      },
 
       render: function ( ){
         var myself = this,
@@ -1087,6 +1142,9 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         this.base.apply( this, arguments );
 
         if ( model.get('isSelected') ) {
+
+          $(target).find('.modesContainer')
+            .append( _.map( model.get('modes') , _.bind( this.renderMode, this ) ) );
 
           if ( !this.hasChild( 'startCalendarDialog' ) ){
             this.setChild( 'startCalendarDialog' , new CustomDateComponent() );
@@ -1099,6 +1157,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
             .update( {
               date: model.get('start'),
               max: model.get('end'),
+              mode: model.get('mode'),
               edge: 'start'
             });
 
@@ -1106,7 +1165,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
           if ( !this.hasChild( 'endCalendarDialog' ) ){
             this.setChild( 'endCalendarDialog' , new CustomDateComponent() );
             myself.listenTo( this.getChild( 'endCalendarDialog' ) , 'selectDate', function (newEnd) {
-              myself.trigger('changeRange', {end: newEnd });
+              myself.trigger('changeRange', { end: newEnd } );
             });
           }
           this.getChild( 'endCalendarDialog' )
@@ -1114,11 +1173,19 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
             .update( {
               date: model.get('end'),
               min: model.get('start'),
+              mode: model.get('mode'),
               edge: 'end'
             });
 
         }
+      },
+      renderMode: function ( modeModel , modeKey ){
+        return $( this.renderTemplate( this.getTemplate('mode') , modeModel ) )
+          .click( _.bind( function (){
+            this.trigger.apply( this, arguments );
+          } , this, 'changeRange' , { mode: modeKey } ) )
       }
+
 
     } );
 
@@ -1153,99 +1220,119 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
   var DrpController = ( function ( $ , _ , ComponentController ){
     //'use strict';
 
-    //--------------------------------//
+    function copy( collection ){
+      var out;
+      if ( !_.isObject( collection ) ){
+        out = collection;
+      } else {
+        var emptyCollection = _.isArray( collection ) ? [] : {};
+        out = $.extend( true , emptyCollection , collection );
+      }
+      return out;
+    }
+
+    function getRangeAttributes (){
+      return [ 'start' , 'end' , 'mode' , 'grain' ];
+    }
+
+    function getBackedAttributes (){
+      return _.union( getRangeAttributes() , [ 'activeSelector' ] );
+    }
+
+    function getRangeFromModel( model ){
+      return _.pick( model, getRangeAttributes() );
+    }
+
+    function getBackedFromModel( model ){
+      return _.pick( model, getBackedAttributes() );
+    }
+    //--------------------------------//;
 
     return ComponentController.extend( {
       constructor: function ( stateModel , paramsModel , view ){
         this.base( stateModel , paramsModel , view );
 
-        // Set which attributes define the range. This could be its own object but, since Backbone change detection is
-        // flat, it's easier to keep track of changes if all the attributes are at the root level
-        this.setRangeAttributes( [ 'start' , 'end' , 'mode' , 'grain' ] );
-
         // Create Bindings
 
         // Bind range params to range internal state to internal temp state. This is needed for apply / cancel buttons.
-        _.forEach( this.getRangeAttributes() , _.bind(function( attr ){
-          this.watchParam( attr , stateModel.getSetter( attr ) );
-        }, this));
-
-        // TODO: temporarily copying predefined to internal state
-        this.watchParam( 'predefined' , stateModel.getSetter( 'predefined' ) );
+        //_.forEach( getRangeAttributes() , _.bind(function( attr ){
+        //  this.watchParam( attr , _.bind( stateModel.set, stateModel, attr ) );
+        //}, this));
 
         this.watchView( 'clickOutside'   , _.partial( this.toggleDropdown , false ) );
         this.watchView( 'clickOnDisplay' , this.toggleDropdown );
-        this.watchView( 'changeRange' , this.setRange );
+        this.watchView( 'changeRange' , this.setRangeState );
         this.watchView( 'cancel' , this.cancelAndClose );
         this.watchView( 'apply' , this.applyAndClose );
-
-        // TODO: Clean up predefined
-        this.watchView( 'select' , _.bind( function( selectedItem ){
-          var items = $.extend( true , [], this.getState( 'predefined' ) );
-          _.forEach( items, function ( item ){
-            item.isSelected = ( _.isEqual( item , selectedItem ) );
-          } );
-          this.setState( 'predefined', items );
-        }, this ) );
+        this.watchView( 'select' , _.partial( this.setState , 'activeSelector' ) );
 
       },
 
-      setRangeAttributes: function( attributes ){
-        this.rangeAttributes = attributes;
+      validateSelector: function ( ){
+        var selectors = this.getParam('selectors');
+        if ( !_.has( selectors , this.getState('activeSelector') ) ) {
+          this.setState( 'activeSelector',  'custom' );
+        }
       },
-      getRangeAttributes: function (){
-        return this.rangeAttributes;
-      },
+
       getRangeParams: function (){
-        return _.pick( this.getParam(), this.getRangeAttributes() );
+        return getRangeFromModel( this.getParam() );
       },
-      getRange: function(){
-        return _.pick( this.getState(), this.getRangeAttributes() );
+      getRangeState: function(){
+        return getRangeFromModel( this.getState() );
 
       },
-      setRange: function ( newRange ){
-        var filteredRange = _.pick( newRange , this.getRangeAttributes() );
-        this.setState( filteredRange );
+      setRangeState: function ( newRange ){
+        this.setState( getRangeFromModel( newRange ) );
       },
 
       toggleDropdown: function ( value ){
         var newValue = _.isUndefined( value ) ? !this.getState( 'isDropdownOpen' ) : value;
         if ( !newValue ){
-          this.cancelSelection();
+          this.restoreSelection();
+        } else {
+          this.loadSelection();
         }
         this.setState( 'isDropdownOpen' , newValue );
       },
-
-      cancelSelection: function (){
-        this.setRange( _.clone( this.getRangeParams() ) );
+      loadSelection: function (){
+        this.setState( 'backup' , getBackedFromModel( this.getState() ) );
+        this.setRangeState( _.clone( this.getRangeParams() ) );
+        this.validateSelector();
       },
-      applySelection: function (){
-        this.trigger( 'change' , this.getRange() );
+      restoreSelection: function (){
+        this.setState( this.getState('backup') );
+      },
+      notifyChange: function (){
+        this.trigger( 'change' , this.getRangeState() );
       },
 
       cancelAndClose: function (){
-        this.cancelSelection();
+        this.restoreSelection();
         this.setState( 'isDropdownOpen' , false );
       },
       applyAndClose: function (){
-        this.applySelection();
+        this.notifyChange();
         this.setState( 'isDropdownOpen' , false );
       },
 
       model2viewModel: function ( state , params ){
-        var start = state.start,
-            end = state.end,
-            rangeDisplay = ( start && start.format( 'YYYY-MM-DD' ) ) + ' To ' + ( end && end.format( 'YYYY-MM-DD' ) );
+        var model = state.isDropdownOpen ? state : params;
+        var rangeDisplay =
+          ( model.start ? model.start.format( 'YYYY-MM-DD' ) : '' ) +
+          ' To ' +
+          ( model.end ? model.end.format( 'YYYY-MM-DD' ) : '' );
 
-        return {
+        var selectors = copy( params.selectors );
+        _.forEach( selectors , function ( selector , key ){
+          selector.isSelected = ( key == state.activeSelector );
+        });
+
+        return _.extend( getRangeFromModel( state ) , {
           rangeDisplay: rangeDisplay,
-          start: start,
-          end:   end,
-          mode: state.mode,
-          grain: state.grain,
-          predefined: state.predefined ,
+          selectors: selectors ,
           isDropdownOpen: state.isDropdownOpen
-        };
+        });
       }
 
     } );
@@ -1265,6 +1352,16 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
             callback();
           }
         } );
+    }
+
+    function createSelector ( type , opts ) {
+      var map = {
+            'predefined': PredefinedComponent,
+            'custom': CustomRangeComponent
+          },
+          SelectorClass = _.isFunction( type ) ? type : ( map[type] || PredefinedComponent );
+
+      return ( new SelectorClass( opts ) );
     }
 
     //--------------------------------//
@@ -1305,11 +1402,7 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '      <button class="cancelButton">Cancel</button>' +
         '    </div>' +
         '    <br> ' +
-        '    <div class="items"> ' +
-        '      {{#predefined}} ' +
-        '        <div class="selectionItems {{#isSelected}}selected{{/isSelected}} "> ' +
-        '        </div>' +
-        '      {{/predefined}}' +
+        '    <div class="selectorsContainer"> ' +
         '    </div> ' +
         '    <br> ' +
         '    <div class="customRange"></div> ' +
@@ -1317,6 +1410,10 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         '  </div> ' +
         '  {{/isDropdownOpen}}' +
         '</div>',
+      templates: {
+        'selector':
+          '<div class="selector {{#isSelected}}selected{{/isSelected}}"></div>'
+      },
 
       getViewId: function (){
         return this.cid;
@@ -1326,48 +1423,42 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
         bindToPage( this.getElement()[0] , _.bind( this.clickOutside, this, false ) , this.getViewId() );
       },
       render: function ( ){
-        var myself = this,
-            target = this.getElement(),
+        var target = this.getElement(),
             model = this.getModel();
 
         this.base.apply( this, arguments );
 
-
-
         if ( model.get('isDropdownOpen') ) {
+          $(target).find('.selectorsContainer').append(
+            _.map( model.get('selectors') , _.bind( this.renderSelector, this) )
+          )
+        }
+      },
+      renderSelector: function ( selectorModel , selectorKey ){
+        var viewModel = this.getModel();
 
-          var $items = $(target).find('.selectionItems');
-          _.forEach(model.get('predefined'), function (config, idx) {
+        var $selector = $( this.renderTemplate( this.getTemplate('selector') , selectorModel ) )
+          .click(_.bind( function (){
+            this.trigger('select', selectorKey );
+          }, this ) );
 
-            var item = new PredefinedComponent();
-
-            item.mount(( $items[idx] )).update(config);
-            myself.listenTo(item, 'activate', function (newRange) {
-              myself.trigger('changeRange', newRange);
-              myself.trigger('select', config);
-            });
+        if ( !this.hasChild( selectorKey ) ){
+          this.setChild( selectorKey , createSelector( selectorModel.type ) );
+          this.listenTo( this.getChild( selectorKey ) , 'changeRange', _.partial( this.trigger , 'changeRange' ) );
+        }
+        this.getChild( selectorKey )
+          .mount( $selector )
+          .update( {
+            mode: viewModel.get('mode'),
+            modes: ['day' , 'week' , 'year'],
+            grain: viewModel.get('grain'),
+            start: viewModel.get('start'),
+            end:  viewModel.get('end'),
+            config: selectorModel.config,
+            isSelected: selectorModel.isSelected
           });
 
-
-
-          if ( !this.hasChild( 'customRange' ) ){
-            this.setChild( 'customRange' , new CustomRangeComponent() );
-            myself.listenTo( this.getChild( 'customRange' ) , 'changeRange', function ( newRange ) {
-              myself.trigger('changeRange', newRange );
-              myself.trigger('select', null);
-            });
-          }
-          this.getChild( 'customRange' )
-            .mount( $(target).find('.customRange') )
-            .update( {
-              mode: model.mode,
-              grain: model.grain,
-              start: model.get('start'),
-              end:  model.get('end'),
-              isSelected: true // TODO
-            });
-
-        }
+        return $selector;
       }
 
     } );
@@ -1409,16 +1500,40 @@ window.drp = ( function (  Backbone , _ , Mustache , Base , $ ) {
 
   drp.mount( '#somethingSomethingDarkside' );
 
-  var items = [
-    { label: 'Month to Date', getRange: function ( ){ return { start: moment().startOf( 'month' ) , end: moment() }; } },
-    { label: 'Last 7 Days', getRange: function ( ){ return { start: moment().add( -7,'days' ) , end: moment() }; } },
-    { label: 'Year to Date', getRange: function ( ){ return { start: moment().startOf( 'year' ), end: moment() }; } }
-    ];
+  var selectors = {
+    mtd: {
+      type: 'predefined',
+      config: {
+        label: 'Month to Date',
+        getRangeState: function ( ){ return { start: moment().startOf( 'month' ) , end: moment() }; } }
+    },
+    last7days: {
+      type: 'predefined',
+      config: {
+        label: 'Last 7 Days',
+        getRangeState: function ( ){ return { start: moment().add( -7,'days' ) , end: moment() }; }
+      }
+    },
+    ytd: {
+      type: 'predefined',
+      config: {
+        label: 'Year to Date',
+        getRangeState: function ( ){ return { start: moment().startOf( 'year' ), end: moment() }; }
+      }
+    },
+    custom: {
+      type: 'custom',
+      config: {
+
+      }
+    }
+  };
 
   drp.update( {
     'start': moment(),
     'end': moment(),
-    'predefined': items
+    'selectors': selectors,
+    'mode': 'day'
   } );
 
   drp.listenTo( drp , 'change' , function ( newRange ){
